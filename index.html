@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<head>
+<meta charset="UTF-8">
+<title>webmux index</title>
+<style>
+  h1 {
+    margin-bottom: 20px;
+    font: 20px/1.5 sans-serif;
+  }
+</style>
+</head>
+<body>
+    <h1>Server list:</h1>
+    {% for name in server_list %}
+        <li> <a href="/shell/{{ server_list[name] }}">{{ name }} - {{ server_list[name] }}</a> <br />
+    {% end %}
+</body>
