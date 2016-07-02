@@ -63,7 +63,7 @@ class TerminalPageHandler(tornado.web.RequestHandler):
 
 
 if __name__ == "__main__":
-    term_manager = WebmuxTermManager(shell_command="echo", max_terminals=100)
+    term_manager = WebmuxTermManager(shell_command=["echo"], max_terminals=100)
 
     handlers = [
         (r"/", IndexPageHandler),
