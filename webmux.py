@@ -9,6 +9,7 @@ from tornado.netutil import bind_unix_socket
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.log import enable_pretty_logging
+import tornado.options
 # This demo requires tornado_xstatic and XStatic-term.js
 import tornado_xstatic
 import terminado
@@ -63,6 +64,9 @@ class TerminalPageHandler(tornado.web.RequestHandler):
 
 
 if __name__ == "__main__":
+    # Parse things like --loglevel
+    tornado.options.parse_command_line()
+
     term_manager = WebmuxTermManager(shell_command=["echo"], max_terminals=100)
 
     handlers = [
