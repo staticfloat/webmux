@@ -1,0 +1,2 @@
+# Encrypt all passwd files
+*_passwd filter=git-crypt diff=git-crypt
