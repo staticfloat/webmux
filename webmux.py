@@ -20,6 +20,8 @@ TEMPLATE_DIR = os.path.dirname(__file__)
 # TODO: Read some kind of database to auto-populate server_list and port_list
 server_list = {
     'criid': '2222',
+    'davinci': '2233',
+    'akatsuki': '2244',
 }
 port_list = {server_list[key]:key for key in server_list}
 
@@ -57,10 +59,15 @@ class IndexPageHandler(tornado.web.RequestHandler):
 class TerminalPageHandler(tornado.web.RequestHandler):
     """Render the /shell/[\d]+ pages"""
     def get(self, port_number):
+        if port_number in port_list:
+            hostname = port_list[port_number]
+        else:
+            hostname = "host on port " + port_number
+
         return self.render("term.html", static=self.static_url,
                            xstatic=self.application.settings['xstatic_url'],
                            ws_url_path="/_websocket/"+port_number,
-                           hostname=port_list[port_number])
+                           hostname=hostname)
 
 
 if __name__ == "__main__":
