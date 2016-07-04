@@ -2,7 +2,7 @@
 from __future__ import print_function, absolute_import
 import logging
 import os, os.path
-import sys
+import sys, subprocess
 
 import tornado.web
 from tornado.netutil import bind_unix_socket
@@ -58,12 +58,20 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             if len(server_list) == 0:
                 port_number = port_base
             else:
-                port_number = max([v for k, v in server_list]) + 1
+                port_number = max([server_list[k] for k in server_list]) + 1
 
             logging.info("Mapping %s to port %d"%(hostname, port_number))
             server_list[hostname] = str(port_number)
         self.write(server_list[hostname])
 
+class ResetPageHandler(tornado.web.RequestHandler):
+    """Reset all SSH connections forwarding ports"""
+    def get(self, hostname):
+        lsof_output = subprocess.check_output("sudo lsof -i:2222-2250 -P -n".split())
+        ssh_procs = list(set([l.split()[1] for l in lsof_output.split('\n')[1:]]))
+        for p in ssh_procs:
+            subprocess.call(["sudo", "kill", p])
+        self.write("Killed %d SSH processes"%(len(ssh_procs)))
 
 class TerminalPageHandler(tornado.web.RequestHandler):
     def get_host(self, port_number):
@@ -88,6 +96,7 @@ if __name__ == "__main__":
 
     handlers = [
         (r"/", IndexPageHandler),
+        (r"/reset", ResetPageHandler),
         (r"/register/(.*)", RegistrationPageHandler),
         (r"/_websocket/(\w+)", terminado.TermSocket, {'term_manager': term_manager}),
         (r"/shell/([\d]+)/?", TerminalPageHandler),

@@ -2,7 +2,7 @@
 
 function get_port_mapping()
 {
-    curl -L "https://webmux.e.ip.saba.us/register/$HOSTNAME" 2>/dev/null
+    curl -f -L "https://webmux.e.ip.saba.us/register/$HOSTNAME" 2>/dev/null
 }
 
 function webmux_reverse_tunnel()
@@ -12,6 +12,10 @@ function webmux_reverse_tunnel()
 
 while [ true ]; do
     PORT_NUMBER=$(get_port_mapping)
+    if [[ -z "$PORT_NUMBER" ]]; then
+        echo "ERROR: Could not get port mapping; bailing..."
+        exit 1
+    fi
     echo "Connecting on port $PORT_NUMBER..."
     webmux_reverse_tunnel $PORT_NUMBER
     sleep 1
