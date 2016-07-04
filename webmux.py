@@ -23,7 +23,10 @@ server_list = {}
 
 def kill_all_tunnels():
     lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+50)
-    lsof_output = subprocess.check_output(lsof_cmd.split())
+    try:
+        lsof_output = subprocess.check_output(lsof_cmd.split())
+    except subprocess.CalledProcessError:
+        return []
     ssh_procs = list(set([l.split()[1] for l in lsof_output.split('\n')[1:] if l]))
     for p in ssh_procs:
         subprocess.call(["sudo", "kill", p])
