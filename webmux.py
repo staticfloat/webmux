@@ -77,7 +77,7 @@ class TerminalPageHandler(tornado.web.RequestHandler):
         return self.render("term.html", static=self.static_url,
                            xstatic=self.application.settings['xstatic_url'],
                            ws_url_path="/_websocket/"+port_number,
-                           hostname=get_host(port_number))
+                           hostname=self.get_host(port_number))
 
 
 if __name__ == "__main__":
