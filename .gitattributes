@@ -1,2 +1,3 @@
-# Encrypt all passwd files
+# Encrypt all password files
 *_passwd filter=git-crypt diff=git-crypt
+secret.sh filter=git-crypt diff=git-crypt

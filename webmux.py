@@ -18,12 +18,8 @@ STATIC_DIR = os.path.join(os.path.dirname(terminado.__file__), "_static")
 TEMPLATE_DIR = os.path.dirname(__file__)
 
 # TODO: Read some kind of database to auto-populate server_list and port_list
-server_list = {
-    'criid': '2222',
-    'davinci': '2233',
-    'akatsuki': '2244',
-}
-port_list = {server_list[key]:key for key in server_list}
+port_base = 2222
+server_list = {}
 
 class WebmuxTermManager(terminado.NamedTermManager):
     """Share terminals between websockets connected to the same endpoint.
@@ -55,19 +51,33 @@ class IndexPageHandler(tornado.web.RequestHandler):
         logging.info("Hit the index page")
         return self.render("index.html", static=self.static_url, server_list=server_list)
 
+class RegistrationPageHandler(tornado.web.RequestHandler):
+    """Return a port number for a hostname"""
+    def get(self, hostname):
+        if not hostname in server_list:
+            if len(server_list) == 0:
+                port_number = port_base
+            else:
+                port_number = max([v for k, v in server_list]) + 1
+
+            logging.info("Mapping %s to port %d"%(hostname, port_number))
+            server_list[hostname] = str(port_number)
+        return server_list[hostname]
+
 
 class TerminalPageHandler(tornado.web.RequestHandler):
+    def get_host(self, port_number):
+        for hostname in server_list:
+            if server_list[hostname] == port_number:
+                return hostname
+        return "host on port " + port_number
+
     """Render the /shell/[\d]+ pages"""
     def get(self, port_number):
-        if port_number in port_list:
-            hostname = port_list[port_number]
-        else:
-            hostname = "host on port " + port_number
-
         return self.render("term.html", static=self.static_url,
                            xstatic=self.application.settings['xstatic_url'],
                            ws_url_path="/_websocket/"+port_number,
-                           hostname=hostname)
+                           hostname=get_host(port_number))
 
 
 if __name__ == "__main__":
@@ -78,6 +88,7 @@ if __name__ == "__main__":
 
     handlers = [
         (r"/", IndexPageHandler),
+        (r"/register/(.*)", RegistrationPageHandler),
         (r"/_websocket/(\w+)", terminado.TermSocket, {'term_manager': term_manager}),
         (r"/shell/([\d]+)/?", TerminalPageHandler),
         (r"/xstatic/(.*)", tornado_xstatic.XStaticFileHandler),
