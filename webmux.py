@@ -21,6 +21,14 @@ TEMPLATE_DIR = os.path.dirname(__file__)
 port_base = 2222
 server_list = {}
 
+def kill_all_tunnels():
+    lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+50)
+    lsof_output = subprocess.check_output(lsof_cmd.split())
+    ssh_procs = list(set([l.split()[1] for l in lsof_output.split('\n')[1:]]))
+    for p in ssh_procs:
+        subprocess.call(["sudo", "kill", p])
+    return ssh_procs
+
 class WebmuxTermManager(terminado.NamedTermManager):
     """Share terminals between websockets connected to the same endpoint.
     """
@@ -67,10 +75,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
 class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
     def get(self, hostname):
-        lsof_output = subprocess.check_output("sudo lsof -i:2222-2250 -P -n".split())
-        ssh_procs = list(set([l.split()[1] for l in lsof_output.split('\n')[1:]]))
-        for p in ssh_procs:
-            subprocess.call(["sudo", "kill", p])
+        ssh_procs = kill_all_tunnels()
         self.write("Killed %d SSH processes"%(len(ssh_procs)))
 
 class TerminalPageHandler(tornado.web.RequestHandler):
@@ -115,6 +120,8 @@ if __name__ == "__main__":
     enable_pretty_logging()
 
     try:
+        # If we restarted or something, then be sure to cause all tunnels to reconnect
+        logging.info(kill_all_tunnels())
         logging.info("All systems operational, commander")
         IOLoop.current().start()
     except KeyboardInterrupt:
