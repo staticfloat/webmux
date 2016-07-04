@@ -66,7 +66,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             if len(server_list) == 0:
                 port_number = port_base
             else:
-                port_number = max([server_list[k] for k in server_list]) + 1
+                port_number = max([int(server_list[k]) for k in server_list]) + 1
 
             logging.info("Mapping %s to port %d"%(hostname, port_number))
             server_list[hostname] = str(port_number)
@@ -76,8 +76,8 @@ class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
     def get(self, hostname):
         ssh_procs = kill_all_tunnels()
-        logging.info("Killed %d SSH processes"%(len(ssh_procs)))
-        self.write("Killed %d SSH processes"%(len(ssh_procs)))
+        logging.info("Killed %d SSH tunnels"%(len(ssh_procs)))
+        self.write("Killed %d SSH tunnels"%(len(ssh_procs)))
 
 class TerminalPageHandler(tornado.web.RequestHandler):
     def get_host(self, port_number):
@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
     try:
         # If we restarted or something, then be sure to cause all tunnels to reconnect
-        logging.info("Killed %d SSH processes"%(len(kill_all_tunnels())))
+        logging.info("Killed %d SSH tunnels"%(len(kill_all_tunnels())))
         logging.info("All systems operational, commander")
         IOLoop.current().start()
     except KeyboardInterrupt:
