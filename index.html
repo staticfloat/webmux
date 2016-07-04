@@ -10,8 +10,8 @@
 </style>
 </head>
 <body>
-    <h1>Server list:</h1>
-    {% for name in server_list %}
+    <h1>Server list: (<a href="/reset">reset</a>)</h1>
+    {% for name in sort(server_list.keys()) %}
         <li> <a href="/shell/{{ server_list[name] }}">{{ name }} - {{ server_list[name] }}</a> <br />
     {% end %}
 </body>
