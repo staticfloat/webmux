@@ -9,7 +9,7 @@ function get_port_mapping()
 
 function webmux_tunnel()
 {
-    truessh -N -R $1:localhost:22 sabae@saba.us
+    $(which ssh) -N -R $1:localhost:22 sabae@saba.us
 }
 
 while [ true ]; do

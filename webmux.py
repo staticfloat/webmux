@@ -62,7 +62,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
 
             logging.info("Mapping %s to port %d"%(hostname, port_number))
             server_list[hostname] = str(port_number)
-        return server_list[hostname]
+        self.write(server_list[hostname])
 
 
 class TerminalPageHandler(tornado.web.RequestHandler):
