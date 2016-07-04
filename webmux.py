@@ -77,7 +77,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
 
 class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
-    def get(self, hostname):
+    def get(self):
         ssh_procs = kill_all_tunnels()
         logging.info("Killed %d SSH tunnels"%(len(ssh_procs)))
         self.write("Killed %d SSH tunnels"%(len(ssh_procs)))
