@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
     try:
         # If we restarted or something, then be sure to cause all tunnels to reconnect
-        logging.info("Killed %d SSH processes"%(len(kill_all_tunnels()))
+        logging.info("Killed %d SSH processes"%(len(kill_all_tunnels())))
         logging.info("All systems operational, commander")
         IOLoop.current().start()
     except KeyboardInterrupt:
