@@ -76,6 +76,7 @@ class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
     def get(self, hostname):
         ssh_procs = kill_all_tunnels()
+        logging.info("Killed %d SSH processes"%(len(ssh_procs)))
         self.write("Killed %d SSH processes"%(len(ssh_procs)))
 
 class TerminalPageHandler(tornado.web.RequestHandler):
@@ -121,7 +122,7 @@ if __name__ == "__main__":
 
     try:
         # If we restarted or something, then be sure to cause all tunnels to reconnect
-        logging.info(kill_all_tunnels())
+        logging.info("Killed %d SSH processes"%(len(kill_all_tunnels()))
         logging.info("All systems operational, commander")
         IOLoop.current().start()
     except KeyboardInterrupt:
