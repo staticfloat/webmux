@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [[ -z "$HOSTNAME" ]]; then
+    HOSTNAME=$(hostname -s)-$RANDOM
+fi
+
 function get_port_mapping()
 {
     curl -f -L "https://webmux.e.ip.saba.us/register/$HOSTNAME" 2>/dev/null
