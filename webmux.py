@@ -72,7 +72,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
                 port_number = max([int(server_list[k]['port']) for k in server_list]) + 1
 
             logging.info("Mapping %s to port %d"%(hostname, port_number))
-            server_list[hostname] = {'port': str(port_number), 'ip': self.transport.getPeer().host}
+            server_list[hostname] = {'port': str(port_number), 'ip': self.request.remote_ip}
         self.write(server_list[hostname]['port'])
 
 class ResetPageHandler(tornado.web.RequestHandler):
