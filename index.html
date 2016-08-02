@@ -12,6 +12,6 @@
 <body>
     <h1>Server list: (<a href="/reset">reset</a>)</h1>
     {% for name in sorted(server_list.keys()) %}
-        <li> <a href="/shell/{{ server_list[name] }}">{{ name }} - {{ server_list[name] }}</a> <br />
+        <li> <a href="/shell/{{ server_list[name] }}">{{ name }} - {{ server_list[name]['ip'] }}:22 -> {{ server_list[name]['port'] }}</a> <br />
     {% end %}
 </body>

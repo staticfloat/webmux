@@ -69,11 +69,11 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             if len(server_list) == 0:
                 port_number = port_base
             else:
-                port_number = max([int(server_list[k]) for k in server_list]) + 1
+                port_number = max([int(server_list[k]['port']) for k in server_list]) + 1
 
             logging.info("Mapping %s to port %d"%(hostname, port_number))
-            server_list[hostname] = str(port_number)
-        self.write(server_list[hostname])
+            server_list[hostname] = {'port': str(port_number), 'ip': self.transport.getPeer().host}
+        self.write(server_list[hostname]['port'])
 
 class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
@@ -85,7 +85,7 @@ class ResetPageHandler(tornado.web.RequestHandler):
 class TerminalPageHandler(tornado.web.RequestHandler):
     def get_host(self, port_number):
         for hostname in server_list:
-            if server_list[hostname] == port_number:
+            if server_list[hostname]['port'] == port_number:
                 return hostname
         return "host on port " + port_number
 
