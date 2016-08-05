@@ -19,7 +19,7 @@ TEMPLATE_DIR = os.path.dirname(__file__)
 
 # TODO: Read some kind of database to auto-populate server_list and port_list
 port_base = 2222
-server_list = {}
+server_list = {'sophia':{'port':22, 'ip':subprocess.check_output("whereami").strip()}}
 
 def kill_all_tunnels():
     lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+50)
@@ -66,10 +66,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
     """Return a port number for a hostname"""
     def get(self, hostname):
         if not hostname in server_list:
-            if len(server_list) == 0:
-                port_number = port_base
-            else:
-                port_number = max([int(server_list[k]['port']) for k in server_list]) + 1
+            port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
 
             logging.info("Mapping %s to port %d"%(hostname, port_number))
             server_list[hostname] = {'port': str(port_number), 'ip': self.request.headers.get("X-Real-IP")}
