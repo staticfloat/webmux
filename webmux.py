@@ -19,7 +19,14 @@ TEMPLATE_DIR = os.path.dirname(__file__)
 
 # TODO: Read some kind of database to auto-populate server_list and port_list
 port_base = 2222
-server_list = {'sophia':{'port':22, 'ip':subprocess.check_output("whereami").strip()}}
+server_list = {}
+
+def external_ip():
+    return subprocess.check_output("whereami").strip()
+
+def reset_server_list():
+    global server_list
+    server_list = {'sophia':{'port':22, 'ip':external_ip()}}
 
 def kill_all_tunnels():
     lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+50)
@@ -76,8 +83,10 @@ class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
     def get(self):
         ssh_procs = kill_all_tunnels()
-        logging.info("Killed %d SSH tunnels"%(len(ssh_procs)))
-        self.write("Killed %d SSH tunnels"%(len(ssh_procs)))
+        reset_server_list()
+
+        logging.info("Killed %d live SSH tunnels"%(len(ssh_procs)))
+        self.write("Killed %d live SSH tunnels"%(len(ssh_procs)))
 
 class TerminalPageHandler(tornado.web.RequestHandler):
     def get_host(self, port_number):
@@ -122,7 +131,9 @@ if __name__ == "__main__":
 
     try:
         # If we restarted or something, then be sure to cause all tunnels to reconnect
-        logging.info("Killed %d SSH tunnels"%(len(kill_all_tunnels())))
+        reset_server_list()
+        ssh_procs = kill_all_tunnels()
+        logging.info("Killed %d SSH tunnels"%(len(ssh_procs)))
         logging.info("All systems operational, commander")
         IOLoop.current().start()
     except KeyboardInterrupt:
