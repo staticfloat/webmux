@@ -2,7 +2,7 @@
 from __future__ import print_function, absolute_import
 import logging
 import os, os.path
-import sys, subprocess
+import sys, subprocess, threading
 
 import tornado.web
 from tornado.netutil import bind_unix_socket
@@ -22,12 +22,19 @@ USER = os.environ['USER']
 port_base = 2222
 server_list = {}
 
-def external_ip():
-    return subprocess.check_output("whereami").strip()
+def get_external_ip():
+    global server_list
+    while server_list['sophia']['ip'] == '127.0.0.1':
+        try:
+            server_list['sophia']['ip'] = subprocess.check_output("whereami").strip()
+            logging.log("Found external IP to be " + server_list['sophia']['ip'])
+        except subprocess.CalledProcessError:
+            pass
 
 def reset_server_list():
     global server_list
-    server_list = {'sophia':{'port':22, 'ip':external_ip(), 'user':USER}}
+    server_list = {'sophia':{'port':22, 'ip':'127.0.0.1', 'user':USER}}
+    threading.Thread(target=get_external_ip).start()
 
 def kill_all_tunnels():
     lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+50)
@@ -55,9 +62,12 @@ class WebmuxTermManager(terminado.NamedTermManager):
         if self.max_terminals and len(self.terminals) >= self.max_terminals:
             raise MaxTerminalsReached(self.max_terminals)
 
+        # Find server mapped to this port
+        name = filter(lambda n: server_list[n]['port'] == int(port_number), server_list.keys())[0]
+
         # Create new terminal
         logging.info("Attempting to connect to port: %s", port_number)
-        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-p", port_number, "%s@localhost"%(user)]
+        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-p", port_number, server_list[name]['user']+"@localhost"]
         term = self.new_terminal()
         term.term_name = port_number
         self.terminals[port_number] = term
