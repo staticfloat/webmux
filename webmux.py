@@ -64,11 +64,11 @@ class WebmuxTermManager(terminado.NamedTermManager):
 
         # Find server mapped to this port
         name = filter(lambda n: server_list[n]['port'] == int(port_number), server_list.keys())[0]
+        s = server_list[name]
 
         # Create new terminal
-        logging.info("Attempting to connect to port: %s", port_number)
-        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking", "no", "-p", port_number, server_list[name]['user']+"@localhost"]
-        logging.info(self.shell_command)
+        logging.info("Attempting to connect to: %s@%s:%d", s['user'], name, s['port'])
+        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking", "no", "-p", port_number, s['user']+"@localhost"]
         term = self.new_terminal()
         term.term_name = port_number
         self.terminals[port_number] = term
