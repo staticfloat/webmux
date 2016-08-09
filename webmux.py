@@ -113,7 +113,7 @@ if __name__ == "__main__":
     handlers = [
         (r"/", IndexPageHandler),
         (r"/reset", ResetPageHandler),
-        (r"/register/(\d+)/(.*)", RegistrationPageHandler),
+        (r"/register/([^ ]+)/([^ ]+)", RegistrationPageHandler),
         (r"/_websocket/(\w+)", terminado.TermSocket, {'term_manager': term_manager}),
         (r"/shell/([\d]+)/?", TerminalPageHandler),
         (r"/xstatic/(.*)", tornado_xstatic.XStaticFileHandler),
