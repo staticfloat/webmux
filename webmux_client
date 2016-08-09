@@ -24,9 +24,9 @@ function get_port_mapping()
 function webmux_reverse_tunnel()
 {
     if [[ -n "$(which gtimeout)" ]]; then
-        gtimeout 1h $(which ssh) -N -R $1:localhost:22 webmux@saba.us
+        gtimeout 1h $(which ssh) -i ~/etc/secure/ssh/external/webmux_rsa -N -R $1:localhost:22 webmux@saba.us
     else
-        timeout 1h $(which ssh) -N -R $1:localhost:22 webmux@saba.us
+        timeout 1h $(which ssh) -i ~/etc/secure/ssh/external/webmux_rsa -N -R $1:localhost:22 webmux@saba.us
     fi
 }
 
