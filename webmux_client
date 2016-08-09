@@ -45,13 +45,9 @@ function webmux_reverse_tunnel()
 while [ true ]; do
     PORT_NUMBER=$(get_port_mapping)
     if [[ -z "$PORT_NUMBER" ]]; then
-        if (( "$PORT_MAP_FAILURES" < 10 )); then
-            echo "ERROR: Could not get port mapping; Sleeping for $((PORT_MAP_FAILURES*10)), then trying again (try $PORT_MAP_FAILURES)"
-            sleep $((PORT_MAP_FAILURES*10))
-            continue
-        fi
-        echo "ERROR: Could not get port mapping; bailing after $PORT_MAP_FAILURES tries!"
-        exit 1
+        echo "ERROR: Could not get port mapping; git pull'ing and trying again..."
+        git pull
+        exec "./webmux_client"
     fi
     echo "Connecting on port $PORT_NUMBER..."
     webmux_reverse_tunnel $PORT_NUMBER
