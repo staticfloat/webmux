@@ -11,8 +11,9 @@ if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
     WEBMUX_SSH_KEY_FILE="~/etc/secure/ssh/external/webmux_rsa"
 fi
 
-if [[ -z $(grep "webmux.e.ip.saba.us ssh-rsa" ~/.ssh/known_hosts) ]]; then
-    echo "webmux.e.ip.saba.us ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCt8svKMVY5PoOJHzJZw6MUTCETWHWrVfKpj5b8McDMSIUiDjrINf7Bntx86G4aocIkWLHD71ZmgdhZACrK9FEJ67ULv3CV0YmFNIYj60e451yXhtXhyearBWD4ry4dd8H/iENTs19r1yzJ102r3g6ztd67JLU7o7g8rZyGUNvd0Ve9ckIpbW6TquZtFhcaQZeG7lQnwJkEDaYFQa1T8GjSdY6SWzzdbHjQr1R+Y/JyR8jnhCkWHXwdw+4d+FWABoAwHbD/9OP2r/upI35d6qEWYKnEQDQcSQss1LiRwl4J033gxXSLpLWk03jxPBguiKEgs0sR/Ukzh9QW2DnffUSn" >> ~/.ssh/known_hosts
+KEYSCAN="|1|5MOtL8p91Mye7t1QHVqWGy3vh4A=|t2HEPsfvD2Qhg2se60DK8HOnGc0= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDUeo1sjImOIuV3O88JjW1H+H7QXxF1Otkw5eTHPbopjMvof1SykFOuEhIW7csxJN9vS+2Vly3mvHljTIcJcRlQ="
+if [[ -z $(grep "$KEYSCAN" ~/.ssh/known_hosts) ]]; then
+    echo "$KEYSCAN" >> ~/.ssh/known_hosts
 fi
 
 if [[ -z "$(which timeout)" ]] && [[ -z "$(which gtimeout)" ]]; then
