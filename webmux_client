@@ -4,6 +4,13 @@ if [[ -z "$HOSTNAME" ]]; then
     HOSTNAME=$(hostname -s)-$RANDOM
 fi
 
+if [[ -z "$WEBMUX_HOST" ]]; then
+    WEBMUX_HOST="webmux.e.ip.saba.us"
+fi
+if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
+    WEBMUX_SSH_KEY_FILE="~/etc/secure/ssh/external/webmux_rsa"
+fi
+
 if [[ -z "$(which timeout)" ]] && [[ -z "$(which gtimeout)" ]]; then
     if [[ "$PLATFORM" == "Darwin" ]]; then
         brew install coreutils
@@ -18,15 +25,15 @@ fi
 
 function get_port_mapping()
 {
-    curl -f -L "https://webmux.e.ip.saba.us/register/$HOSTNAME" 2>/dev/null
+    curl -f -L "https://$WEBMUX_HOST/register/$HOSTNAME" 2>/dev/null
 }
 
 function webmux_reverse_tunnel()
 {
     if [[ -n "$(which gtimeout)" ]]; then
-        gtimeout 1h $(which ssh) -i ~/etc/secure/ssh/external/webmux_rsa -N -R $1:localhost:22 webmux@saba.us
+        gtimeout 1h $(which ssh) -i "$WEBMUX_SSH_KEY_FILE" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
     else
-        timeout 1h $(which ssh) -i ~/etc/secure/ssh/external/webmux_rsa -N -R $1:localhost:22 webmux@saba.us
+        timeout 1h $(which ssh) -i "$WEBMUX_SSH_KEY_FILE" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
     fi
 }
 
