@@ -47,6 +47,7 @@ while [ true ]; do
     if [[ -z "$PORT_NUMBER" ]]; then
         echo "ERROR: Could not get port mapping; git pull'ing and trying again..."
         git pull
+        sleep 10
         exec "./webmux_client"
     fi
     echo "Connecting on port $PORT_NUMBER..."

@@ -27,7 +27,7 @@ def get_external_ip():
     while server_list['sophia']['ip'] == '127.0.0.1':
         try:
             server_list['sophia']['ip'] = subprocess.check_output("whereami").strip()
-            logging.log("Found external IP to be " + server_list['sophia']['ip'])
+            logging.info("Found external IP to be " + server_list['sophia']['ip'])
         except subprocess.CalledProcessError:
             pass
 
@@ -68,6 +68,7 @@ class WebmuxTermManager(terminado.NamedTermManager):
         # Create new terminal
         logging.info("Attempting to connect to port: %s", port_number)
         self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-p", port_number, server_list[name]['user']+"@localhost"]
+        logging.info(self.shell_command)
         term = self.new_terminal()
         term.term_name = port_number
         self.terminals[port_number] = term
@@ -87,8 +88,8 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
 
             logging.info("Mapping %s to port %d"%(hostname, port_number))
-            server_list[hostname] = {'port': str(port_number), 'ip': self.request.headers.get("X-Real-IP"), 'user':user}
-        self.write(server_list[hostname]['port'])
+            server_list[hostname] = {'port': int(port_number), 'ip': self.request.headers.get("X-Real-IP"), 'user':user}
+        self.write(str(server_list[hostname]['port']))
 
 class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
