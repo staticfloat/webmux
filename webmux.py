@@ -67,7 +67,7 @@ class WebmuxTermManager(terminado.NamedTermManager):
 
         # Create new terminal
         logging.info("Attempting to connect to port: %s", port_number)
-        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-p", port_number, server_list[name]['user']+"@localhost"]
+        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking", "no", "-p", port_number, server_list[name]['user']+"@localhost"]
         logging.info(self.shell_command)
         term = self.new_terminal()
         term.term_name = port_number
