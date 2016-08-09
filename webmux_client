@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -x
 if [[ -z "$HOSTNAME" ]]; then
     HOSTNAME=$(hostname -s)-$RANDOM
 fi
