@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -x
 if [[ -z "$HOSTNAME" ]]; then
     HOSTNAME=$(hostname -s)-$RANDOM
 fi
@@ -36,9 +37,9 @@ function get_port_mapping()
 function webmux_reverse_tunnel()
 {
     if [[ -n "$(which gtimeout)" ]]; then
-        gtimeout 1h $(which ssh) -i "$(echo $WEBMUX_SSH_KEY_FILE)" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
+        gtimeout 1h $(which ssh) -i "${WEBMUX_SSH_KEY_FILE/#\~/$HOME}" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
     else
-        timeout 1h $(which ssh) -i "$(echo $WEBMUX_SSH_KEY_FILE)" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
+        timeout 1h $(which ssh) -i "${WEBMUX_SSH_KEY_FILE/#\~/$HOME}" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
     fi
 }
 
