@@ -16,6 +16,7 @@ import terminado
 
 STATIC_DIR = os.path.join(os.path.dirname(terminado.__file__), "_static")
 TEMPLATE_DIR = os.path.dirname(__file__)
+USER = os.environ['USER']
 
 # TODO: Read some kind of database to auto-populate server_list and port_list
 port_base = 2222
@@ -26,7 +27,7 @@ def external_ip():
 
 def reset_server_list():
     global server_list
-    server_list = {'sophia':{'port':22, 'ip':external_ip()}}
+    server_list = {'sophia':{'port':22, 'ip':external_ip(), 'user':USER}}
 
 def kill_all_tunnels():
     lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+50)
@@ -56,7 +57,7 @@ class WebmuxTermManager(terminado.NamedTermManager):
 
         # Create new terminal
         logging.info("Attempting to connect to port: %s", port_number)
-        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-p", port_number, "localhost"]
+        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-p", port_number, "%s@localhost"%(user)]
         term = self.new_terminal()
         term.term_name = port_number
         self.terminals[port_number] = term
@@ -71,12 +72,12 @@ class IndexPageHandler(tornado.web.RequestHandler):
 
 class RegistrationPageHandler(tornado.web.RequestHandler):
     """Return a port number for a hostname"""
-    def get(self, hostname):
+    def get(self, hostname, user):
         if not hostname in server_list:
             port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
 
             logging.info("Mapping %s to port %d"%(hostname, port_number))
-            server_list[hostname] = {'port': str(port_number), 'ip': self.request.headers.get("X-Real-IP")}
+            server_list[hostname] = {'port': str(port_number), 'ip': self.request.headers.get("X-Real-IP"), 'user':user}
         self.write(server_list[hostname]['port'])
 
 class ResetPageHandler(tornado.web.RequestHandler):
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     handlers = [
         (r"/", IndexPageHandler),
         (r"/reset", ResetPageHandler),
-        (r"/register/(.*)", RegistrationPageHandler),
+        (r"/register/(\d+)/(.*)", RegistrationPageHandler),
         (r"/_websocket/(\w+)", terminado.TermSocket, {'term_manager': term_manager}),
         (r"/shell/([\d]+)/?", TerminalPageHandler),
         (r"/xstatic/(.*)", tornado_xstatic.XStaticFileHandler),
