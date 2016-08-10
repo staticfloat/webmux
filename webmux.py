@@ -10,8 +10,6 @@ from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.log import enable_pretty_logging
 import tornado.options
-# This demo requires tornado_xstatic and XStatic-term.js
-import tornado_xstatic
 import terminado
 
 STATIC_DIR = os.path.join(os.path.dirname(terminado.__file__), "_static")
@@ -110,7 +108,6 @@ class TerminalPageHandler(tornado.web.RequestHandler):
     """Render the /shell/[\d]+ pages"""
     def get(self, port_number):
         return self.render("term.html", static=self.static_url,
-                           xstatic=self.application.settings['xstatic_url'],
                            ws_url_path="/_websocket/"+port_number,
                            hostname=self.get_host(port_number))
 
@@ -138,11 +135,10 @@ if __name__ == "__main__":
         (r"/register/([^ ]+)/([^ ]+)", RegistrationPageHandler),
         (r"/_websocket/(\w+)", terminado.TermSocket, {'term_manager': term_manager}),
         (r"/shell/([\d]+)/?", TerminalPageHandler),
-        (r"/xstatic/(.*)", tornado_xstatic.XStaticFileHandler),
+        (r"/webmux_static/(.*)", tornado.web.StaticFileHandler, {'path':os.path.join(TEMPLATE_DIR,"webmux_static")}),
     ]
     application = tornado.web.Application(handlers, static_path=STATIC_DIR,
                               template_path=TEMPLATE_DIR,
-                              xstatic_url=tornado_xstatic.url_maker('/xstatic/'),
                               term_manager=term_manager)
 
     SOCKET_PATH = "/tmp/webmux.socket"
