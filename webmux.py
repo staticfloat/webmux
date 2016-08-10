@@ -114,6 +114,16 @@ class TerminalPageHandler(tornado.web.RequestHandler):
                            ws_url_path="/_websocket/"+port_number,
                            hostname=self.get_host(port_number))
 
+class BashPageHandler(tornado.web.RequestHandler):
+    """Render the /bash page"""
+    def get(self):
+        commands = ""
+        for name in server_list:
+            s = server_list[name]
+            commands += "alias %s=ssh -p %d %s@%s\n"%(name, s['port'], s['user'], s['ip'])
+        self.write(commands)
+
+
 
 if __name__ == "__main__":
     # Parse things like --loglevel
@@ -123,6 +133,7 @@ if __name__ == "__main__":
 
     handlers = [
         (r"/", IndexPageHandler),
+        (r"/bash", BashPageHandler),
         (r"/reset", ResetPageHandler),
         (r"/register/([^ ]+)/([^ ]+)", RegistrationPageHandler),
         (r"/_websocket/(\w+)", terminado.TermSocket, {'term_manager': term_manager}),
