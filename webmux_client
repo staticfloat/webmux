@@ -35,7 +35,7 @@ function get_port_mapping()
         MOSH_PATH=$(qwhich mosh-server)
     fi
     JSON_DATA="{\"user\":\"$USER\", \"hostname\":\"$HOSTNAME\", \"mosh_path\":\"$MOSH_PATH\"}"
-    curl -H "Content-Type: application/json" -X POST -d "$JSON_DATA" -f -L "http://$WEBMUX_HOST/register"
+    curl -# -H "Content-Type: application/json" -X POST -d "$JSON_DATA" -f -L "https://$WEBMUX_HOST/register"
 }
 
 function webmux_reverse_tunnel()
