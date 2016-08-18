@@ -60,7 +60,8 @@ def update_direct_connects():
     global server_list, update_in_progress
 
     update_in_progress.acquire()
-    for name in server_list:
+    names = server_list.keys()
+    for name in names:
         s = server_list[name]
         if 'last_direct_try' not in s or s['last_direct_try'] + 60*60 < time.time():
             logging.info("Probing %s for direct connection..."%(s['hostname']))
