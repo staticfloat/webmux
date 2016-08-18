@@ -114,7 +114,12 @@ class IndexPageHandler(tornado.web.RequestHandler):
 class RegistrationPageHandler(tornado.web.RequestHandler):
     """Return a port number for a hostname"""
     def post(self):
-        data = json_decode(self.request.body)
+        try:
+            data = json_decode(self.request.body)
+        except:
+            logging.warn("Couldn't decode JSON body \"%s\" from IP %s"%(self.request.body, self.request.headers.get('X-Real-Ip')))
+            return
+
         hostname = data['hostname']
         data['direct'] = False
 
