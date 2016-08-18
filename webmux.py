@@ -2,7 +2,7 @@
 from __future__ import print_function, absolute_import
 import logging
 import os, os.path
-import sys, subprocess, threading
+import sys, subprocess, threading, time
 
 import tornado.web
 from tornado.netutil import bind_unix_socket
@@ -31,8 +31,17 @@ def get_external_ip():
             pass
 
 def reset_server_list():
-    global server_list
-    server_list = {'sophia':{'port':22, 'ip':'127.0.0.1', 'user':USER, 'mosh_path':''}}
+    global server_list, USER
+    server_list = {
+        'sophia': {
+            'hostname': 'sophia',
+            'port':22,
+            'ip':'127.0.0.1',
+            'user':USER,
+            'mosh_path':'',
+            'direct':True
+        }
+    }
     threading.Thread(target=get_external_ip).start()
 
 def kill_all_tunnels():
@@ -45,6 +54,27 @@ def kill_all_tunnels():
     for p in ssh_procs:
         subprocess.call(["sudo", "kill", p])
     return ssh_procs
+
+update_in_progress = threading.Lock()
+def update_direct_connects():
+    global server_list, update_in_progress
+
+    update_in_progress.acquire()
+    for name in server_list:
+        s = server_list[name]
+        if 'last_direct_try' not in s or s['last_direct_try'] + 60*60 < time.time():
+            logging.info("Probing %s for direct connection..."%(s['hostname']))
+
+            s['last_direct_try'] = time.time()
+            ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 %s@%s"%(s['user'], s['ip'])
+            try:
+                subprocess.check_call(ssh_cmd.split())
+                logging.info("Success!")
+                s['direct'] = True
+            except subprocess.CalledProcessError:
+                logging.info("Failure!")
+                s['direct'] = False
+    update_in_progress.release()
 
 class WebmuxTermManager(terminado.NamedTermManager):
     """Share terminals between websockets connected to the same endpoint.
@@ -85,6 +115,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
     def post(self):
         data = json_decode(self.request.body)
         hostname = data['hostname']
+        data['direct'] = False
 
         if not hostname in server_list:
             port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
@@ -98,6 +129,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             data['ip'] = server_list[hostname]['ip']
 
         server_list[hostname] = data
+        threading.Thread(target=update_direct_connects).start()
         self.write(str(data['port']))
 
 class ResetPageHandler(tornado.web.RequestHandler):
@@ -129,9 +161,16 @@ class BashPageHandler(tornado.web.RequestHandler):
         for name in server_list:
             s = server_list[name]
             if len(s['mosh_path']) != 0:
-                commands += "alias %s=mosh --server=\"%s\" -p %d %s@%s\n"%(name, s['mosh_path'], s['port'], s['user'], s['ip'])
+                prog = "mosh --server=\"%s\""%(s['mosh_path'])
             else:
-                commands += "alias %s=ssh -p %d %s@%s\n"%(name, s['port'], s['user'], s['ip'])
+                prog = "ssh"
+
+            if s['direct']:
+                target = "-p %d %s@%s"%(s['port'], s['user'], s['ip'])
+            else:
+                target = "-p 22 %s@%s"%(s['user'], server_list['sophia']['ip'])
+
+            commands += "alias %s=%s -p %d %s@%s\n"%(name, prog, target)
         self.write(commands)
 
 
