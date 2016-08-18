@@ -23,7 +23,7 @@ server_list = {}
 
 def get_external_ip():
     global server_list
-    while server_list['sophia']['ip'] == '127.0.0.1':
+    while server_list['sophia']['ip'] == 'saba.us':
         try:
             server_list['sophia']['ip'] = subprocess.check_output("whereami").strip()
             logging.info("Found external IP to be " + server_list['sophia']['ip'])
@@ -36,7 +36,7 @@ def reset_server_list():
         'sophia': {
             'hostname': 'sophia',
             'port':22,
-            'ip':'127.0.0.1',
+            'ip':'saba.us',
             'user':USER,
             'mosh_path':'',
             'direct':True
@@ -61,19 +61,24 @@ def update_direct_connects():
 
     update_in_progress.acquire()
     names = server_list.keys()
+
     for name in names:
         s = server_list[name]
         if 'last_direct_try' not in s or s['last_direct_try'] + 60*60 < time.time():
             logging.info("Probing %s for direct connection..."%(s['hostname']))
 
             s['last_direct_try'] = time.time()
-            ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 %s@%s"%(s['user'], s['ip'])
+            ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no %s@%s source ~/.bash_profile; echo $HOSTNAME"%(s['user'], s['ip'])
             try:
-                subprocess.check_call(ssh_cmd.split())
-                logging.info("Success!")
-                s['direct'] = True
+                remote_name = subprocess.check_output(ssh_cmd.split()).strip()
+                if remote_name == name:
+                    logging.info("Probed %s successfully!"%(name))
+                    s['direct'] = True
+                else:
+                    logging.info("Failure on %s, hostname was %s!"%(name, remote_name))
+                    s['direct'] = False
             except subprocess.CalledProcessError:
-                logging.info("Failure!")
+                logging.info("Failure on %s, (ssh connection failure)"%(name))
                 s['direct'] = False
     update_in_progress.release()
 
@@ -173,9 +178,9 @@ class BashPageHandler(tornado.web.RequestHandler):
                 prog = "ssh"
 
             if s['direct']:
-                target = "-p %d %s@%s"%(s['port'], s['user'], s['ip'])
+                target = "%s@%s"%(s['user'], s['ip'])
             else:
-                target = "-p 22 %s@%s"%(s['user'], server_list['sophia']['ip'])
+                target = "-p %d %s@webmux.e.ip.saba.us"%(s['port'], s['user'])
 
             commands += "function %s() { title %s; tmux_escape %s %s; }\n"%(name, name, prog, target)
         self.write(commands)
