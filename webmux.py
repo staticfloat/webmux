@@ -9,6 +9,7 @@ from tornado.netutil import bind_unix_socket
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.log import enable_pretty_logging
+from tornado.escape import json_decode
 import tornado.options
 import terminado
 
@@ -31,7 +32,7 @@ def get_external_ip():
 
 def reset_server_list():
     global server_list
-    server_list = {'sophia':{'port':22, 'ip':'127.0.0.1', 'user':USER}}
+    server_list = {'sophia':{'port':22, 'ip':'127.0.0.1', 'user':USER, 'mosh_path':''}}
     threading.Thread(target=get_external_ip).start()
 
 def kill_all_tunnels():
@@ -81,13 +82,23 @@ class IndexPageHandler(tornado.web.RequestHandler):
 
 class RegistrationPageHandler(tornado.web.RequestHandler):
     """Return a port number for a hostname"""
-    def get(self, hostname, user):
+    def post(self):
+        data = json_decode(self.request.body)
+        hostname = data['hostname']
+
         if not hostname in server_list:
             port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
 
+            data['port'] = port_number
+            data['ip'] = self.request.headers.get("X-Real-IP")
+
             logging.info("Mapping %s to port %d"%(hostname, port_number))
-            server_list[hostname] = {'port': int(port_number), 'ip': self.request.headers.get("X-Real-IP"), 'user':user}
-        self.write(str(server_list[hostname]['port']))
+        else:
+            data['port'] = server_list[hostname]['port']
+            data['ip'] = server_list[hostname]['ip']
+
+        server_list[hostname] = data
+        self.write(str(data['port']))
 
 class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
@@ -117,7 +128,10 @@ class BashPageHandler(tornado.web.RequestHandler):
         commands = ""
         for name in server_list:
             s = server_list[name]
-            commands += "alias %s=ssh -p %d %s@%s\n"%(name, s['port'], s['user'], s['ip'])
+            if len(s['mosh_path']) != 0:
+                commands += "alias %s=mosh --server=\"%s\" -p %d %s@%s\n"%(name, s['mosh_path'], s['port'], s['user'], s['ip'])
+            else:
+                commands += "alias %s=ssh -p %d %s@%s\n"%(name, s['port'], s['user'], s['ip'])
         self.write(commands)
 
 
@@ -132,7 +146,7 @@ if __name__ == "__main__":
         (r"/", IndexPageHandler),
         (r"/bash", BashPageHandler),
         (r"/reset", ResetPageHandler),
-        (r"/register/([^ ]+)/([^ ]+)", RegistrationPageHandler),
+        (r"/register", RegistrationPageHandler),
         (r"/_websocket/(\w+)", terminado.TermSocket, {'term_manager': term_manager}),
         (r"/shell/([\d]+)/?", TerminalPageHandler),
         (r"/webmux_static/(.*)", tornado.web.StaticFileHandler, {'path':os.path.join(TEMPLATE_DIR,"webmux_static")}),
