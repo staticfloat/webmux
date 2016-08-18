@@ -157,6 +157,7 @@ class TerminalPageHandler(tornado.web.RequestHandler):
 class BashPageHandler(tornado.web.RequestHandler):
     """Render the /bash page"""
     def get(self):
+        global server_list
         commands = ""
         for name in server_list:
             s = server_list[name]
@@ -170,7 +171,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             else:
                 target = "-p 22 %s@%s"%(s['user'], server_list['sophia']['ip'])
 
-            commands += "alias %s=%s -p %d %s@%s\n"%(name, prog, target)
+            commands += "function %s() { title %s; tmux_escape %s %s; }\n"%(name, name, prog, target)
         self.write(commands)
 
 
