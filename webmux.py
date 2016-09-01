@@ -182,7 +182,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             else:
                 target = "-p %d %s@webmux.e.ip.saba.us"%(s['port'], s['user'])
 
-            commands += "function %s() { title %s; tmux_escape %s %s; }\n"%(name, name, prog, target)
+            commands += "function %s() { title %s; tmux_escape %s %s $*; }\n"%(name, name, prog, target)
         self.write(commands)
 
 
