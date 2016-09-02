@@ -1,5 +1,6 @@
 #!/bin/bash
 
+PLATFORM="$(uname)"
 if [[ -z "$HOSTNAME" ]]; then
     HOSTNAME=$(hostname -s)-$RANDOM
 fi
@@ -16,23 +17,11 @@ if [[ -z $(grep "$KEYSCAN" ~/.ssh/known_hosts) ]]; then
     echo "$KEYSCAN" >> ~/.ssh/known_hosts
 fi
 
-if [[ -z "$(which timeout)" ]] && [[ -z "$(which gtimeout)" ]]; then
-    if [[ "$PLATFORM" == "Darwin" ]]; then
-        brew install coreutils
-    elif [[ -n "$(which apt-get)" ]]; then
-        sudo apt-get install coreutils
-    elif [[ -n "$(which yum)" ]]; then
-        sudo yum install coreutils
-    else
-        echo "ERROR: timeout not found, and I don't know how to install it!"
-    fi
-fi
-
 function get_port_mapping()
 {
     MOSH_PATH=""
-    if [[ -n $(qwhich mosh-server) ]]; then
-        MOSH_PATH=$(qwhich mosh-server)
+    if [[ -n $(which mosh-server 2>/dev/null) ]]; then
+        MOSH_PATH=$(which mosh-server 2>/dev/null)
     fi
     JSON_DATA="{\"user\":\"$USER\", \"hostname\":\"$HOSTNAME\", \"mosh_path\":\"$MOSH_PATH\"}"
     curl -# -H "Content-Type: application/json" -X POST -d "$JSON_DATA" -f -L "https://$WEBMUX_HOST/register"
@@ -46,6 +35,22 @@ function webmux_reverse_tunnel()
         timeout 1h $(which ssh) -i "${WEBMUX_SSH_KEY_FILE/#\~/$HOME}" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
     fi
 }
+
+if [[ -z "$(which timeout)" ]] && [[ -z "$(which gtimeout)" ]]; then
+    if [[ "$PLATFORM" == "Darwin" ]]; then
+        brew install coreutils
+    elif [[ -n "$(which apt-get)" ]]; then
+        sudo apt-get install coreutils
+    elif [[ -n "$(which yum)" ]]; then
+        sudo yum install coreutils
+    else
+        echo "ERROR: timeout not found, and I don't know how to install it!"
+    fi
+fi
+
+if [[ "$PLATFORM" == "Darwin" ]] && [[ -z "$(which reattach-to-user-namespace)" ]]; then
+    brew install reattach-to-user-namespace
+fi
 
 while [ true ]; do
     PORT_NUMBER=$(get_port_mapping)
