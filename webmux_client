@@ -49,10 +49,6 @@ if [[ -z "$(which timeout)" ]] && [[ -z "$(which gtimeout)" ]]; then
     fi
 fi
 
-if [[ "$PLATFORM" == "Darwin" ]] && [[ -z "$(which reattach-to-user-namespace)" ]]; then
-    brew install reattach-to-user-namespace
-fi
-
 while [ true ]; do
     PORT_NUMBER=$(get_port_mapping)
     if [[ -z "$PORT_NUMBER" ]]; then
