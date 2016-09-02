@@ -11,6 +11,7 @@ fi
 if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
     WEBMUX_SSH_KEY_FILE="~/etc/secure/ssh/external/webmux_rsa"
 fi
+chmod 0600 "$WEBMUX_SSH_KEY_FILE"
 
 KEYSCAN="|1|5MOtL8p91Mye7t1QHVqWGy3vh4A=|t2HEPsfvD2Qhg2se60DK8HOnGc0= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDUeo1sjImOIuV3O88JjW1H+H7QXxF1Otkw5eTHPbopjMvof1SykFOuEhIW7csxJN9vS+2Vly3mvHljTIcJcRlQ="
 if [[ -z $(grep "$KEYSCAN" ~/.ssh/known_hosts) ]]; then
