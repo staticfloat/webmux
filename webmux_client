@@ -18,11 +18,16 @@ if [[ -z $(grep "$KEYSCAN" ~/.ssh/known_hosts) ]]; then
     echo "$KEYSCAN" >> ~/.ssh/known_hosts
 fi
 
+function qwhich()
+{
+    which "$@" 2>/dev/null
+}
+
 function get_port_mapping()
 {
     MOSH_PATH=""
-    if [[ -n $(which mosh-server 2>/dev/null) ]]; then
-        MOSH_PATH=$(which mosh-server 2>/dev/null)
+    if [[ -n $(qwhich mosh-server 2>/dev/null) ]]; then
+        MOSH_PATH=$(qwhich mosh-server 2>/dev/null)
     fi
     JSON_DATA="{\"user\":\"$USER\", \"hostname\":\"$HOSTNAME\", \"mosh_path\":\"$MOSH_PATH\"}"
     curl -# -H "Content-Type: application/json" -X POST -d "$JSON_DATA" -f -L "https://$WEBMUX_HOST/register"
@@ -30,19 +35,19 @@ function get_port_mapping()
 
 function webmux_reverse_tunnel()
 {
-    if [[ -n "$(which gtimeout)" ]]; then
+    if [[ -n "$(qwhich gtimeout)" ]]; then
         gtimeout 1h $(which ssh) -i "${WEBMUX_SSH_KEY_FILE/#\~/$HOME}" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
     else
         timeout 1h $(which ssh) -i "${WEBMUX_SSH_KEY_FILE/#\~/$HOME}" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
     fi
 }
 
-if [[ -z "$(which timeout)" ]] && [[ -z "$(which gtimeout)" ]]; then
+if [[ -z "$(qwhich timeout)" ]] && [[ -z "$(qwhich gtimeout)" ]]; then
     if [[ "$PLATFORM" == "Darwin" ]]; then
         brew install coreutils
-    elif [[ -n "$(which apt-get)" ]]; then
+    elif [[ -n "$(qwhich apt-get)" ]]; then
         sudo apt-get install coreutils
-    elif [[ -n "$(which yum)" ]]; then
+    elif [[ -n "$(qwhich yum)" ]]; then
         sudo yum install coreutils
     else
         echo "ERROR: timeout not found, and I don't know how to install it!"
