@@ -20,3 +20,8 @@ webmux is released under the MIT license
 > CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 > TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 > SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+`xterm.css` and `xterm.js` are copied from the [xterm.js](https://github.com/sourcelair/xterm.js) repository wholesale, while
+`terminado_attach.js` and `main.js` are modified versions of files from that
+same repository, made to be compatible with `terminado`.  All source files from
+other repositories are also released under the MIT license.

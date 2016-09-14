@@ -302,7 +302,7 @@
      * Positions the composition view on top of the cursor and the textarea just below it (so the
      * IME helper dialog is positioned correctly).
      */
-    CompositionHelper.prototype.updateCompositionElements = function() {
+    CompositionHelper.prototype.updateCompositionElements = function(dontRecurse) {
       if (!this.isComposing) {
         return;
       }
@@ -310,8 +310,12 @@
       if (cursor) {
         this.compositionView.style.left = cursor.offsetLeft + 'px';
         this.compositionView.style.top = cursor.offsetTop + 'px';
-        this.textarea.style.left = cursor.offsetLeft + 'px';
+        var compositionViewBounds = this.compositionView.getBoundingClientRect();
+        this.textarea.style.left = cursor.offsetLeft + compositionViewBounds.width + 'px';
         this.textarea.style.top = (cursor.offsetTop + cursor.offsetHeight) + 'px';
+      }
+      if (!dontRecurse) {
+        setTimeout(this.updateCompositionElements.bind(this, true), 0);
       }
     };
 
@@ -357,12 +361,14 @@
     Viewport.prototype.refresh = function(charSize) {
       var size = charSize || this.charMeasureElement.getBoundingClientRect();
       if (size.height > 0) {
-        if (size.height !== this.currentRowHeight) {
+        var rowHeightChanged = size.height !== this.currentRowHeight;
+        if (rowHeightChanged) {
           this.currentRowHeight = size.height;
           this.viewportElement.style.lineHeight = size.height + 'px';
           this.terminal.rowContainer.style.lineHeight = size.height + 'px';
         }
-        if (this.lastRecordedViewportHeight !== this.terminal.rows) {
+        var viewportHeightChanged = this.lastRecordedViewportHeight !== this.terminal.rows;
+        if (rowHeightChanged || viewportHeightChanged) {
           this.lastRecordedViewportHeight = this.terminal.rows;
           this.viewportElement.style.height = size.height * this.terminal.rows + 'px';
         }
@@ -375,13 +381,18 @@
      */
     Viewport.prototype.syncScrollArea = function() {
       if (this.isApplicationMode) {
+        // Fix scroll bar in application mode
         this.lastRecordedBufferLength = this.terminal.rows;
         this.refresh();
         return;
       }
 
       if (this.lastRecordedBufferLength !== this.terminal.lines.length) {
+        // If buffer height changed
         this.lastRecordedBufferLength = this.terminal.lines.length;
+        this.refresh();
+      } else if (this.lastRecordedViewportHeight !== this.terminal.rows) {
+        // If viewport height changed
         this.refresh();
       } else {
         // If size has changed, refresh viewport
@@ -390,6 +401,8 @@
           this.refresh(size);
         }
       }
+
+      // Sync scrollTop
       var scrollTop = this.terminal.ydisp * this.currentRowHeight;
       if (this.viewportElement.scrollTop !== scrollTop) {
         this.viewportElement.scrollTop = scrollTop;
@@ -412,6 +425,10 @@
      * @param {Event} ev The scroll event.
      */
     Viewport.prototype.onScroll = function(ev) {
+      if (this.isApplicationMode) {
+        // Scrolling via the scroll bar is disabled during application mode
+        return;
+      }
       var newRow = Math.round(this.viewportElement.scrollTop / this.currentRowHeight);
       var diff = newRow - this.terminal.ydisp;
       this.terminal.scrollDisp(diff, true);
@@ -1318,8 +1335,8 @@
         // convert to cols/rows
         w = self.element.clientWidth;
         h = self.element.clientHeight;
-        x = Math.round((x / w) * self.cols);
-        y = Math.round((y / h) * self.rows);
+        x = Math.ceil((x / w) * self.cols);
+        y = Math.ceil((y / h) * self.rows);
 
         // be sure to avoid sending
         // bad positions to the program
@@ -2890,39 +2907,63 @@
           break;
         // left-arrow
         case 37:
-          if (modifiers)
+          if (modifiers) {
             result.key = '\x1b[1;' + (modifiers + 1) + 'D';
-          else if (this.applicationCursor)
+            // HACK: Make Alt + left-arrow behave like Ctrl + left-arrow: move one word backwards
+            // http://unix.stackexchange.com/a/108106
+            if (result.key == '\x1b[1;3D') {
+              result.key = '\x1b[1;5D';
+            }
+          } else if (this.applicationCursor) {
             result.key = '\x1bOD';
-          else
+          } else {
             result.key = '\x1b[D';
+          }
           break;
         // right-arrow
         case 39:
-          if (modifiers)
+          if (modifiers) {
             result.key = '\x1b[1;' + (modifiers + 1) + 'C';
-          else if (this.applicationCursor)
+            // HACK: Make Alt + right-arrow behave like Ctrl + right-arrow: move one word forward
+            // http://unix.stackexchange.com/a/108106
+            if (result.key == '\x1b[1;3C') {
+              result.key = '\x1b[1;5C';
+            }
+          } else if (this.applicationCursor) {
             result.key = '\x1bOC';
-          else
+          } else {
             result.key = '\x1b[C';
+          }
           break;
         // up-arrow
         case 38:
-          if (modifiers)
+          if (modifiers) {
             result.key = '\x1b[1;' + (modifiers + 1) + 'A';
-          else if (this.applicationCursor)
+            // HACK: Make Alt + up-arrow behave like Ctrl + up-arrow
+            // http://unix.stackexchange.com/a/108106
+            if (result.key == '\x1b[1;3A') {
+              result.key = '\x1b[1;5A';
+            }
+          } else if (this.applicationCursor) {
             result.key = '\x1bOA';
-          else
+          } else {
             result.key = '\x1b[A';
+          }
           break;
         // down-arrow
         case 40:
-          if (modifiers)
+          if (modifiers) {
             result.key = '\x1b[1;' + (modifiers + 1) + 'B';
-          else if (this.applicationCursor)
+            // HACK: Make Alt + down-arrow behave like Ctrl + down-arrow
+            // http://unix.stackexchange.com/a/108106
+            if (result.key == '\x1b[1;3B') {
+              result.key = '\x1b[1;5B';
+            }
+          } else if (this.applicationCursor) {
             result.key = '\x1bOB';
-          else
+          } else {
             result.key = '\x1b[B';
+          }
           break;
         // insert
         case 45:
@@ -3460,7 +3501,9 @@
     Terminal.prototype.reset = function() {
       this.options.rows = this.rows;
       this.options.cols = this.cols;
+      var customKeydownHandler = this.customKeydownHandler;
       Terminal.call(this, this.options);
+      this.customKeydownHandler = customKeydownHandler;
       this.refresh(0, this.rows - 1);
     };
 
