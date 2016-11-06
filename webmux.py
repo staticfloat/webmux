@@ -172,17 +172,42 @@ class BashPageHandler(tornado.web.RequestHandler):
         commands = ""
         for name in server_list:
             s = server_list[name]
+
+            build_command = lambda name, prog, target: "function %s() { title %s; tmux_escape %s %s $*; }\n"%(name, name, prog, target)
+
+            # Add .mosh* commands if we've got a mosh_path:
             if len(s['mosh_path']) != 0:
+                # Add .mosh.direct command
                 prog = "mosh --server=\"%s\""%(s['mosh_path'])
-            else:
-                prog = "ssh"
-
-            if s['direct']:
                 target = "%s@%s"%(s['user'], s['ip'])
-            else:
-                target = "-p %d %s@webmux.e.ip.saba.us"%(s['port'], s['user'])
+                commands += build_command(name+".mosh.direct", prog, target)
 
-            commands += "function %s() { title %s; tmux_escape %s %s $*; }\n"%(name, name, prog, target)
+                # Add .mosh.webmux command
+                #target = "-p %d %s@webmux.e.ip.saba.us"%(s['port'], s['user'])
+                #commands += build_command(name+".mosh.webmux", prog, target)
+
+            # Add .ssh.direct command
+            prog = "ssh"
+            target = "%s@%s"%(s['user'], s['ip'])
+            commands += build_command(name+".ssh.direct", prog, target)
+
+            # Add .ssh.webmux command
+            target = "-p %d %s@webmux.e.ip.saba.us"%(s['port'], s['user'])
+            commands += build_command(name+".ssh.webmux", prog, target)
+
+            # Decide whether we should prefer direct or webmux:
+            direction = "direct"
+            if not s['direct']:
+                direction = "webmux"
+
+            # Add shortcuts like "name.ssh" and "name.mosh" that default to direct/webmux
+            for m in ["ssh", "mosh"]:
+                commands += "function %s.%s() { %s.%s.%s $* };\n"%(name, m, name, m, direction)
+
+            # Decide whether we should prefer mosh or ssh (right now always ssh)
+            method = "ssh"
+            commands += "function %s() { %s.%s $*; }\n"%(name, name, method)
+
         self.write(commands)
 
 
