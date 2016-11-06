@@ -202,7 +202,7 @@ class BashPageHandler(tornado.web.RequestHandler):
 
             # Add shortcuts like "name.ssh" and "name.mosh" that default to direct/webmux
             for m in ["ssh", "mosh"]:
-                commands += "function %s.%s() { %s.%s.%s $* };\n"%(name, m, name, m, direction)
+                commands += "function %s.%s() { %s.%s.%s $*; };\n"%(name, m, name, m, direction)
 
             # Decide whether we should prefer mosh or ssh (right now always ssh)
             method = "ssh"
