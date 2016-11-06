@@ -38,7 +38,7 @@ def reset_server_list():
             'port':22,
             'ip':'saba.us',
             'user':USER,
-            'mosh_path':'',
+            'mosh_path':'/usr/bin/mosh-server',
             'direct':True
         }
     }
