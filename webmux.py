@@ -169,7 +169,7 @@ class BashPageHandler(tornado.web.RequestHandler):
     """Render the /bash page"""
     def get(self):
         global server_list
-        commands = ""
+        commands = "#webmuxbash\n"
         for name in server_list:
             s = server_list[name]
 
