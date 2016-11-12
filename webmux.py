@@ -197,12 +197,15 @@ class BashPageHandler(tornado.web.RequestHandler):
 
             # Decide whether we should prefer direct or webmux:
             direction = "direct"
-            if not s['direct']:
+            if not s["direct"]:
                 direction = "webmux"
 
             # Add shortcuts like "name.ssh" and "name.mosh" that default to direct/webmux
             for m in ["ssh", "mosh"]:
                 commands += "function %s.%s() { %s.%s.%s $*; };\n"%(name, m, name, m, direction)
+            # Add shortcuts like "name.direct" and "name.webmux" that default to ssh/mosh
+            for m in ["direct", "webmux"]:
+                commands += "function %s.%s() { %s.ssh.%s $*; };\n"%(name, m, name, m)
 
             # Decide whether we should prefer mosh or ssh (right now always ssh)
             method = "ssh"
