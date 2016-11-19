@@ -132,12 +132,12 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
 
             data['port'] = port_number
-            data['ip'] = self.request.headers.get("X-Real-IP")
-
             logging.info("Mapping %s to port %d"%(hostname, port_number))
         else:
             data['port'] = server_list[hostname]['port']
-            data['ip'] = server_list[hostname]['ip']
+       
+        # Always update the 'ip', in case the machine has moved since registration
+        data['ip'] = self.request.headers.get("X-Real-IP")
 
         server_list[hostname] = data
         threading.Thread(target=update_direct_connects).start()
