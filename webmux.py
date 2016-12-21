@@ -233,7 +233,7 @@ class BashPageHandler(tornado.web.RequestHandler):
                 commands += build_command(name+".mosh.direct", prog, target)
 
                 # Add .mosh.webmux command
-                target = "--ssh=\"ssh -p %d\" --port=%d %s@webmux.e.ip.saba.us"%(s['port'], s['port'] + 1000, s['user'])
+                target = "--ssh=\"ssh -p %d\" --bind=any --port=%d %s@webmux.e.ip.saba.us"%(s['port'], s['port'] + 1000, s['user'])
                 commands += build_command(name+".mosh.webmux", prog, target)
 
             # Add .ssh.direct command
