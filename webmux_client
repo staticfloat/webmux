@@ -70,8 +70,8 @@ function webmux_reverse_tunnel()
         SSH_CMD="$SSH_CMD -R $MOSH_PORT:localhost:$MOSH_PORT"
 
         # Immediately spawn off our own socat to do the local parroting
-        SOCAT_CMD="$TIMEOUT socat tcp4-listen:$MOSH_PORT,reuseaddr,fork UDP:localhost:$MOSH_PORT"
-        $SOCAT_CMD & >/dev/null
+        SOCAT_CMD="$TIMEOUT socat tcp4-listen:$MOSH_PORT,reuseaddr,fork udp:localhost:$MOSH_PORT"
+        $SOCAT_CMD &
         SOCAT_PID="$!"
     fi
 
