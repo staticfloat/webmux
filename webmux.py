@@ -17,11 +17,11 @@ STATIC_DIR = os.path.join(os.path.dirname(terminado.__file__), "_static")
 TEMPLATE_DIR = os.path.dirname(__file__)
 USER = os.environ['USER']
 
-# TODO: Read some kind of database to auto-populate server_list and port_list
-port_base = 2222
+# This is the port we'll start handing things out at
+port_base = 2023
 server_list = {}
 
-def get_external_ip():
+def get_my_external_ip():
     global server_list
     while server_list['sophia']['ip'] == 'saba.us':
         try:
@@ -39,13 +39,21 @@ def reset_server_list():
             'ip':'saba.us',
             'user':USER,
             'mosh_path':'/usr/bin/mosh-server',
-            'direct':True
+            'direct':True,
+            'socat_process':None,
         }
     }
-    threading.Thread(target=get_external_ip).start()
+    t = threading.Thread(target=get_my_external_ip)
+    t.daemon = True
+    t.start()
 
 def kill_all_tunnels():
-    lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+50)
+    """
+    Sometimes we just need to kill all the tunnels that have come in ever, so we
+    don't rely upon our list, we instead ask `lsof` to look for all processes
+    that are listening on the first 100 ports of our port_base and kill 'em all.
+    """
+    lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+100)
     try:
         lsof_output = subprocess.check_output(lsof_cmd.split())
     except subprocess.CalledProcessError:
@@ -57,15 +65,21 @@ def kill_all_tunnels():
 
 update_in_progress = threading.Lock()
 def update_direct_connects():
+    """
+    Loop through all servers, checking whether we can connect to them directly.
+    If we can, then spit out bash aliases that do so by default, instead of
+    proxying through the webmux server.
+    """
     global server_list, update_in_progress
 
+    logging.info("Checking direct connects for %d tunnels"%(len(server_list)))
     update_in_progress.acquire()
     names = server_list.keys()
 
     for name in names:
         s = server_list[name]
         if 'last_direct_try' not in s or s['last_direct_try'] + 60*60 < time.time():
-            logging.info("Probing %s for direct connection..."%(s['hostname']))
+            logging.info("Probing %s for direct connection on port %d..."%(s['hostname'], s['port']))
 
             s['last_direct_try'] = time.time()
             ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no %s@%s source ~/.bash_profile; echo $HOSTNAME"%(s['user'], s['ip'])
@@ -81,6 +95,32 @@ def update_direct_connects():
                 logging.info("Failure on %s, (ssh connection failure)"%(name))
                 s['direct'] = False
     update_in_progress.release()
+
+socat_check_in_progress = threading.Lock()
+def check_socat_tunnel():
+    """
+    Ensures that our mosh-enabling socat tunnels are in place on the server
+    """
+    global server_list, socat_tunnels_lock
+
+    logging.info("Checking socat tunnel health for %d tunnels"%(len(server_list)))
+
+    socat_check_in_progress.acquire()
+    for name in server_list.keys():
+        s = server_list[name]
+        # Skip ourselves
+        if s['port'] == 22:
+            continue
+
+        # Was this guy's process never started, or worse, died?
+        if s['socat_process'] == None or s['socat_process'].poll() != None:
+            logging.info("Starting socat process for %s on port %d"%(s['hostname'], s['port'] + 1000))
+            s['socat_process'] = subprocess.Popen([
+                'socat',
+                'udp4-recvfrom:%d,reuseaddr,fork'%(s['port'] + 1000),
+                'tcp:localhost:%d'%(s['port'] + 1000),
+            ])
+    socat_check_in_progress.release()
 
 class WebmuxTermManager(terminado.NamedTermManager):
     """Share terminals between websockets connected to the same endpoint.
@@ -125,8 +165,10 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             logging.warn("Couldn't decode JSON body \"%s\" from IP %s"%(self.request.body, self.request.headers.get('X-Real-Ip')))
             return
 
+        # Initialize some data straight off the bat
         hostname = data['hostname']
         data['direct'] = False
+        data['socat_process'] = None
 
         if not hostname in server_list:
             port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
@@ -135,12 +177,20 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             logging.info("Mapping %s to port %d"%(hostname, port_number))
         else:
             data['port'] = server_list[hostname]['port']
-       
+
         # Always update the 'ip', in case the machine has moved since registration
         data['ip'] = self.request.headers.get("X-Real-IP")
 
         server_list[hostname] = data
-        threading.Thread(target=update_direct_connects).start()
+
+        # Let's take this opportunity to update our direct connects and check
+        # our socat tunnels.  We don't mind doing this le very often.
+        t = threading.Thread(target=update_direct_connects)
+        t.daemon = True
+        t.start()
+        t = threading.Thread(target=check_socat_tunnel)
+        t.daemon = True
+        t.start()
         self.write(str(data['port']))
 
 class ResetPageHandler(tornado.web.RequestHandler):
@@ -183,8 +233,8 @@ class BashPageHandler(tornado.web.RequestHandler):
                 commands += build_command(name+".mosh.direct", prog, target)
 
                 # Add .mosh.webmux command
-                #target = "-p %d %s@webmux.e.ip.saba.us"%(s['port'], s['user'])
-                #commands += build_command(name+".mosh.webmux", prog, target)
+                target = "--ssh=\"ssh -p %d\" --port=%d %s@webmux.e.ip.saba.us"%(s['port'], s['port'] + 1000, s['user'])
+                commands += build_command(name+".mosh.webmux", prog, target)
 
             # Add .ssh.direct command
             prog = "ssh"
@@ -207,8 +257,10 @@ class BashPageHandler(tornado.web.RequestHandler):
             for m in ["direct", "webmux"]:
                 commands += "function %s.%s() { %s.ssh.%s $*; };\n"%(name, m, name, m)
 
-            # Decide whether we should prefer mosh or ssh (right now always ssh)
+            # Decide whether we should prefer mosh or ssh
             method = "ssh"
+            if len(s['mosh_path']) != 0:
+                method = "mosh"
             commands += "function %s() { %s.%s $*; }\n"%(name, name, method)
 
         self.write(commands)

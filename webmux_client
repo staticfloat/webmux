@@ -9,13 +9,13 @@ if [[ -z "$WEBMUX_HOST" ]]; then
     WEBMUX_HOST="webmux.e.ip.saba.us"
 fi
 if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
-    WEBMUX_SSH_KEY_FILE="~/etc/secure/ssh/external/webmux_rsa"
+    WEBMUX_SSH_KEY_FILE="$HOME/etc/secure/ssh/external/webmux_rsa"
 fi
 chmod 0600 "$WEBMUX_SSH_KEY_FILE"
 
 KEYSCAN="|1|5MOtL8p91Mye7t1QHVqWGy3vh4A=|t2HEPsfvD2Qhg2se60DK8HOnGc0= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDUeo1sjImOIuV3O88JjW1H+H7QXxF1Otkw5eTHPbopjMvof1SykFOuEhIW7csxJN9vS+2Vly3mvHljTIcJcRlQ="
-if [[ -z $(grep "$KEYSCAN" ~/.ssh/known_hosts) ]]; then
-    echo "$KEYSCAN" >> ~/.ssh/known_hosts
+if [[ -z $(grep "$KEYSCAN" $HOME/.ssh/known_hosts) ]]; then
+    echo "$KEYSCAN" >> "$HOME/.ssh/known_hosts"
 fi
 
 function qwhich()
@@ -26,19 +26,66 @@ function qwhich()
 function get_port_mapping()
 {
     MOSH_PATH=""
-    if [[ -n $(qwhich mosh-server 2>/dev/null) ]]; then
-        MOSH_PATH=$(qwhich mosh-server 2>/dev/null)
+    if [[ -n "$(qwhich mosh-server)" ]]; then
+        MOSH_PATH="$(qwhich mosh-server)"
     fi
     JSON_DATA="{\"user\":\"$USER\", \"hostname\":\"$HOSTNAME\", \"mosh_path\":\"$MOSH_PATH\"}"
     curl -# -H "Content-Type: application/json" -X POST -d "$JSON_DATA" -f -L "https://$WEBMUX_HOST/register"
 }
 
+# Returns true (0) if we've got a `mosh-server` and a `socat` on the path
+function tunnel_mosh
+{
+    if [[ -n "$(qwhich mosh-server)" ]] && [[ -n "$(qwhich socat)" ]]; then
+        return 0
+    fi
+    return 1
+}
+
 function webmux_reverse_tunnel()
 {
+    SSH_PORT="$1"
+    MOSH_PORT="$(($1 + 1000))"
+
+    # Use a "timeout" command, if we can, if we can't, well, too bad
+    TIMEOUT=""
     if [[ -n "$(qwhich gtimeout)" ]]; then
-        gtimeout 1h $(which ssh) -i "${WEBMUX_SSH_KEY_FILE/#\~/$HOME}" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
-    else
-        timeout 1h $(which ssh) -i "${WEBMUX_SSH_KEY_FILE/#\~/$HOME}" -N -R $1:localhost:22 "webmux@$WEBMUX_HOST"
+        TIMEOUT="$(qwhich gtimeout) 1h"
+    elif [[ -n "$(qwhich timeout)" ]]; then
+        TIMEOUT="$(qwhich timeout) 1h"
+    fi
+
+    # Initialize SSH_CMD with our timeout
+    SSH_CMD="$TIMEOUT $(which ssh)"
+
+    # Set keyfile to use to login
+    SSH_CMD="$SSH_CMD -i ${WEBMUX_SSH_KEY_FILE/#\~/$HOME}"
+
+    # Create port forwarding for SSH
+    SSH_CMD="$SSH_CMD -R $SSH_PORT:localhost:22"
+
+    # If we can tunnel mosh, then start up a socat instance running on here to
+    # parrot incoming UDP-over-TCP packets to our mosh instance
+    if tunnel_mosh; then
+        SSH_CMD="$SSH_CMD -R $MOSH_PORT:localhost:$MOSH_PORT"
+
+        # Immediately spawn off our own socat to do the local parroting
+        SOCAT_CMD="$TIMEOUT socat tcp4-listen:$MOSH_PORT,reuseaddr,fork UDP:localhost:$MOSH_PORT"
+        $SOCAT_CMD & >/dev/null
+        SOCAT_PID="$!"
+    fi
+
+    # Put in server address
+    SSH_CMD="$SSH_CMD -N webmux@$WEBMUX_HOST"
+
+
+    # Execute the SSH command
+    $SSH_CMD
+
+    # Once ssh finishes, immediately kill the socat if it's still there
+    if [[ -n "$SOCAT_PID" ]] && [[ "$(ps -o command -p $SOCAT_PID)" == *$SOCAT_CMD* ]]; then
+        echo "Killing child socat..."
+        kill $SOCAT_PID
     fi
 }
 
@@ -50,7 +97,7 @@ if [[ -z "$(qwhich timeout)" ]] && [[ -z "$(qwhich gtimeout)" ]]; then
     elif [[ -n "$(qwhich yum)" ]]; then
         sudo yum install coreutils
     else
-        echo "ERROR: timeout not found, and I don't know how to install it!"
+        echo "`timeout` not found, and I don't know how to install it, continuing without!"
     fi
 fi
 
@@ -62,7 +109,7 @@ while [ true ]; do
         sleep 10
         exec "./webmux_client"
     fi
-    echo "Connecting on port $PORT_NUMBER..."
+    echo "Connecting to claim port $PORT_NUMBER..."
     webmux_reverse_tunnel $PORT_NUMBER
     sleep 1
 done
