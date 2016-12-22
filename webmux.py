@@ -222,7 +222,7 @@ class BashPageHandler(tornado.web.RequestHandler):
         for name in server_list:
             s = server_list[name]
 
-            build_command = lambda name, prog, target: "function %s() { title %s; tmux_escape %s %s $*; }\n"%(name, name, prog, target)
+            build_command = lambda name, prog, target: "function %s() { title %s; tmux_escape %s %s \"$@\"; }\n"%(name, name, prog, target)
 
             # Add .mosh* commands if we've got a mosh_path:
             if len(s['mosh_path']) != 0:
