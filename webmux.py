@@ -73,28 +73,28 @@ def update_direct_connects():
     global server_list, update_in_progress
 
     logging.info("Checking direct connects for %d tunnels"%(len(server_list)))
-    update_in_progress.acquire()
-    names = server_list.keys()
+    with update_in_progress:
+        names = server_list.keys()
 
-    for name in names:
-        s = server_list[name]
-        if 'last_direct_try' not in s or s['last_direct_try'] + 60*60 < time.time():
-            logging.info("Probing %s for direct connection on port %d..."%(s['hostname'], s['port']))
+        for name in names:
+            s = server_list[name]
+            if 'last_direct_try' not in s or s['last_direct_try'] + 60*60 < time.time():
+                logging.info("  Probing %s for direct connection on port %d..."%(s['hostname'], s['port']))
 
-            s['last_direct_try'] = time.time()
-            ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no %s@%s source ~/.bash_profile; echo $HOSTNAME"%(s['user'], s['ip'])
-            try:
-                remote_name = subprocess.check_output(ssh_cmd.split()).strip()
-                if remote_name == name:
-                    logging.info("Probed %s successfully!"%(name))
-                    s['direct'] = True
-                else:
-                    logging.info("Failure on %s, hostname was %s!"%(name, remote_name))
+                s['last_direct_try'] = time.time()
+                ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no %s@%s source ~/.bash_profile; echo $HOSTNAME"%(s['user'], s['ip'])
+                try:
+                    remote_name = subprocess.check_output(ssh_cmd.split()).strip()
+                    if remote_name == name:
+                        logging.info("    Probed %s successfully!"%(name))
+                        s['direct'] = True
+                    else:
+                        logging.info("    Failure on %s, hostname was %s!"%(name, remote_name))
+                        s['direct'] = False
+                except subprocess.CalledProcessError:
+                    logging.info("    Failure on %s, (ssh connection failure)"%(name))
                     s['direct'] = False
-            except subprocess.CalledProcessError:
-                logging.info("Failure on %s, (ssh connection failure)"%(name))
-                s['direct'] = False
-    update_in_progress.release()
+
 
 socat_check_in_progress = threading.Lock()
 def check_socat_tunnel():
@@ -104,23 +104,21 @@ def check_socat_tunnel():
     global server_list, socat_tunnels_lock
 
     logging.info("Checking socat tunnel health for %d tunnels"%(len(server_list)))
-
-    socat_check_in_progress.acquire()
-    for name in server_list.keys():
-        s = server_list[name]
-        # Skip ourselves
-        if s['port'] == 22:
-            continue
-
-        # Was this guy's process never started, or worse, died?
-        if s['socat_process'] == None or s['socat_process'].poll() != None:
-            logging.info("Starting socat process for %s on port %d"%(s['hostname'], s['port'] + 1000))
-            s['socat_process'] = subprocess.Popen([
-                'socat',
-                'udp4-recvfrom:%d,reuseaddr,fork'%(s['port'] + 1000),
-                'tcp:localhost:%d'%(s['port'] + 1000),
-            ])
-    socat_check_in_progress.release()
+    with socat_check_in_progress:
+        for name in server_list.keys():
+            s = server_list[name]
+            # Skip ourselves
+            if s['port'] == 22:
+                continue
+        
+            # Was this guy's process never started, or worse, died?
+            if s['socat_process'] == None or s['socat_process'].poll() != None:
+                logging.info("Starting socat process for %s on port %d"%(s['hostname'], s['port'] + 1000))
+                server_list[name]['socat_process'] = subprocess.Popen([
+                    'socat',
+                    'udp4-recvfrom:%d,reuseaddr,fork'%(s['port'] + 1000),
+                    'tcp:localhost:%d'%(s['port'] + 1000),
+                ])
 
 class WebmuxTermManager(terminado.NamedTermManager):
     """Share terminals between websockets connected to the same endpoint.
@@ -165,23 +163,24 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             logging.warn("Couldn't decode JSON body \"%s\" from IP %s"%(self.request.body, self.request.headers.get('X-Real-Ip')))
             return
 
-        # Initialize some data straight off the bat
-        hostname = data['hostname']
-        data['direct'] = False
-        data['socat_process'] = None
-
-        if not hostname in server_list:
+        # If this hostname does not already exist, then create it with sane defaults
+        if not data['hostname'] in server_list:
             port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
 
             data['port'] = port_number
-            logging.info("Mapping %s to port %d"%(hostname, port_number))
+            data['socat_process'] = None
+            data['direct'] = False
+            logging.info("Mapping %s to port %d"%(data['hostname'], port_number))
         else:
-            data['port'] = server_list[hostname]['port']
+            # If it does already exist, then update everything with the old server_list object's contents
+            for k in server_list[data['hostname']]:
+                if not k in data:
+                    data[k] = server_list[data['hostname']][k]
 
         # Always update the 'ip', in case the machine has moved since registration
         data['ip'] = self.request.headers.get("X-Real-IP")
 
-        server_list[hostname] = data
+        server_list[data['hostname']] = data
 
         # Let's take this opportunity to update our direct connects and check
         # our socat tunnels.  We don't mind doing this le very often.
@@ -233,7 +232,7 @@ class BashPageHandler(tornado.web.RequestHandler):
                 commands += build_command(name+".mosh.direct", prog, target)
 
                 # Add .mosh.webmux command
-                target = "--ssh=\"ssh -p %d\" --bind=any --port=%d %s@webmux.e.ip.saba.us"%(s['port'], s['port'] + 1000, s['user'])
+                target = "--ssh='ssh -p %d' --bind=any --port=%d %s@webmux.e.ip.saba.us"%(s['port'], s['port'] + 1000, s['user'])
                 commands += build_command(name+".mosh.webmux", prog, target)
 
             # Add .ssh.direct command
