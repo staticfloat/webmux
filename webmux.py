@@ -257,10 +257,10 @@ class BashPageHandler(tornado.web.RequestHandler):
                 commands += "function %s.%s() { %s.ssh.%s $*; };\n"%(name, m, name, m)
 
             # Decide whether we should prefer mosh or ssh
-            method = "ssh"
             if len(s['mosh_path']) != 0:
-                method = "mosh"
-            commands += "function %s() { %s.%s $*; }\n"%(name, name, method)
+                commands += "function %s() { if [[ -n $(which mosh 2>/dev/null) ]]; then %s.mosh $*; else %s.ssh $*; fi; }\n"%(name, name, name)
+            else:
+                commands += "function %s() { %s.ssh $*; }"%(name, name)
 
         self.write(commands)
 
