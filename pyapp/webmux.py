@@ -3,6 +3,7 @@ from __future__ import print_function, absolute_import
 import logging
 import os, os.path
 import sys, subprocess, threading, time
+import requests, re
 
 import tornado.web
 from tornado.netutil import bind_unix_socket
@@ -12,10 +13,10 @@ from tornado.log import enable_pretty_logging
 from tornado.escape import json_decode
 import tornado.options
 import terminado
+import traceback
 
 STATIC_DIR = os.path.join(os.path.dirname(terminado.__file__), "_static")
 TEMPLATE_DIR = os.path.dirname(__file__)
-USER = os.environ['USER']
 
 # This is the port we'll start handing things out at
 port_base = 2023
@@ -25,22 +26,28 @@ def get_my_external_ip():
     global server_list
     while server_list['sophia']['ip'] == 'saba.us':
         try:
-            server_list['sophia']['ip'] = subprocess.check_output("whereami").strip()
-            logging.info("Found external IP to be " + server_list['sophia']['ip'])
-        except subprocess.CalledProcessError:
+            findTags = re.compile(r'<.*?>')
+            findIP = re.compile(r'\d+\.\d+\.\d+\.\d+')
+
+            html = requests.get('http://checkip.dyndns.org' ).text()
+            ipaddress = findIP.search(findTags.sub('', html))
+            if ipaddress is not None:
+                server_list['sophia']['ip'] = ipaddress.group(0)
+                logging.info("Found external IP to be %s"(server_list['sophia']['ip']))
+        except:
             pass
 
 def reset_server_list():
-    global server_list, USER
+    global server_list
     server_list = {
         'sophia': {
             'hostname': 'sophia',
-            'port':22,
-            'ip':'saba.us',
-            'user':USER,
-            'mosh_path':'/usr/bin/mosh-server',
-            'direct':True,
-            'socat_process':None,
+            'port': 22,
+            'ip': 'saba.us',
+            'user': 'sabae',
+            'mosh_path': '/usr/bin/mosh-server',
+            'direct': True,
+            'socat_process': None,
         }
     }
     t = threading.Thread(target=get_my_external_ip)
@@ -58,9 +65,15 @@ def kill_all_tunnels():
         lsof_output = subprocess.check_output(lsof_cmd.split())
     except subprocess.CalledProcessError:
         return []
+    except:
+        traceback.print_exc(file=sys.stdout)
+        logging.warning("Unable to probe active tunnels")
+        return []
+    
     ssh_procs = list(set([l.split()[1] for l in lsof_output.split('\n')[1:] if l]))
     for p in ssh_procs:
         subprocess.call(["sudo", "kill", p])
+
     return ssh_procs
 
 update_in_progress = threading.Lock()
@@ -82,7 +95,7 @@ def update_direct_connects():
                 logging.info("  Probing %s for direct connection on port %d..."%(s['hostname'], s['port']))
 
                 s['last_direct_try'] = time.time()
-                ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no %s@%s source ~/.bash_profile; echo $HOSTNAME"%(s['user'], s['ip'])
+                ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no %s@%s source ~/.bash_profile; echo $HOSTNAME"%(s['user'], s['ip'])
                 try:
                     remote_name = subprocess.check_output(ssh_cmd.split()).strip()
                     if remote_name == name:
@@ -141,7 +154,7 @@ class WebmuxTermManager(terminado.NamedTermManager):
 
         # Create new terminal
         logging.info("Attempting to connect to: %s@%s:%d", s['user'], name, s['port'])
-        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking no", "-p", port_number, s['user']+"@localhost"]
+        self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking no", "-p", port_number, s['user']+"@webmux.e.ip.saba.us"]
         term = self.new_terminal()
         term.term_name = port_number
         self.terminals[port_number] = term
@@ -179,6 +192,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
 
         # Always update the 'ip', in case the machine has moved since registration
         data['ip'] = self.request.headers.get("X-Real-IP")
+        logging.info("Registered %s at %s"%(data['hostname'], data['ip']))
 
         server_list[data['hostname']] = data
 
@@ -283,14 +297,8 @@ if __name__ == "__main__":
     ]
     application = tornado.web.Application(handlers, static_path=STATIC_DIR,
                               template_path=TEMPLATE_DIR,
-                              term_manager=term_manager)
-
-    SOCKET_PATH = "/tmp/webmux.socket"
-    socket = bind_unix_socket(SOCKET_PATH)
-    os.chmod(SOCKET_PATH, 0777)
-    server = HTTPServer(application)
-    server.add_socket(socket)
-    enable_pretty_logging()
+                              term_manager=term_manager, debug=True)
+    application.listen(8888)
 
     try:
         # If we restarted or something, then be sure to cause all tunnels to reconnect

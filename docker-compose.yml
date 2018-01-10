@@ -1,0 +1,15 @@
+version: '3'
+services:
+    webmux_pyapp:
+        build: pyapp
+        restart: unless-stopped
+    webmux:
+        restart: unless-stopped
+        depends_on:
+            - webmux_pyapp
+        build: frontend
+networks:
+    default:
+        external:
+            name: sophia
+
