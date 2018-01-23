@@ -274,7 +274,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             if len(s['mosh_path']) != 0:
                 commands += "function %s() { if [[ -n $(which mosh 2>/dev/null) ]]; then %s.mosh $*; else %s.ssh $*; fi; }\n"%(name, name, name)
             else:
-                commands += "function %s() { %s.ssh $*; }"%(name, name)
+                commands += "function %s() { %s.ssh $*; }\n"%(name, name)
 
         self.write(commands)
 
