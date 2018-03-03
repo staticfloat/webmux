@@ -8,12 +8,15 @@ fi
 if [[ -z "$WEBMUX_HOST" ]]; then
     WEBMUX_HOST="webmux.e.ip.saba.us"
 fi
+if [[ -z "$WEBMUX_PORT" ]]; then
+    WEBMUX_PORT=2000
+fi
 if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
     WEBMUX_SSH_KEY_FILE="$HOME/etc/secure/ssh/external/webmux_rsa"
 fi
 chmod 0600 "$WEBMUX_SSH_KEY_FILE"
 
-KEYSCAN="|1|5MOtL8p91Mye7t1QHVqWGy3vh4A=|t2HEPsfvD2Qhg2se60DK8HOnGc0= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDUeo1sjImOIuV3O88JjW1H+H7QXxF1Otkw5eTHPbopjMvof1SykFOuEhIW7csxJN9vS+2Vly3mvHljTIcJcRlQ="
+KEYSCAN="[|1|9UJGBoc3H5go/V3jv1otiSyxO5g=|/dS3fFmFq8ekOGtbP82gD2DE+8Q=]:2000 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBAxveddAVoQP70xoveM966s80WjqDQyKzSY6RNQDdp5W2O0GlcxxNVFKypaAHl8EmIVA1Zi/ISl0LRGuGrIPCXY="
 if [[ -z $(grep "$KEYSCAN" $HOME/.ssh/known_hosts) ]]; then
     echo "$KEYSCAN" >> "$HOME/.ssh/known_hosts"
 fi
@@ -76,7 +79,7 @@ function webmux_reverse_tunnel()
     fi
 
     # Put in server address
-    SSH_CMD="$SSH_CMD -N webmux@$WEBMUX_HOST"
+    SSH_CMD="$SSH_CMD -N -p $WEBMUX_PORT webmux@$WEBMUX_HOST"
 
 
     # Execute the SSH command
