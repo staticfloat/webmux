@@ -16,7 +16,7 @@ if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
 fi
 chmod 0600 "$WEBMUX_SSH_KEY_FILE"
 
-KEYSCAN="[|1|9UJGBoc3H5go/V3jv1otiSyxO5g=|/dS3fFmFq8ekOGtbP82gD2DE+8Q=]:2000 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBAxveddAVoQP70xoveM966s80WjqDQyKzSY6RNQDdp5W2O0GlcxxNVFKypaAHl8EmIVA1Zi/ISl0LRGuGrIPCXY="
+KEYSCAN="|1|Nr4Mpm9wTlyVnPlQkwmHlecm9uc=|xQKvGvRmoPs/HvBlDoIezfY5t3g= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOkDbQ3Kkh9HvzWYaep7DaZaFM9zPp5dHqOr4nKD3vS1rJUT141UXSFL0E6GXlJ+mOmwCHuSioSq+dgok+ImaRY="
 if [[ -z $(grep "$KEYSCAN" $HOME/.ssh/known_hosts) ]]; then
     echo "$KEYSCAN" >> "$HOME/.ssh/known_hosts"
 fi
@@ -53,9 +53,9 @@ function webmux_reverse_tunnel()
     # Use a "timeout" command, if we can, if we can't, well, too bad
     TIMEOUT=""
     if [[ -n "$(qwhich gtimeout)" ]]; then
-        TIMEOUT="$(qwhich gtimeout) 1h"
+        TIMEOUT="$(qwhich gtimeout) --foreground 1h"
     elif [[ -n "$(qwhich timeout)" ]]; then
-        TIMEOUT="$(qwhich timeout) 1h"
+        TIMEOUT="$(qwhich timeout) --foreground 1h"
     fi
 
     # Initialize SSH_CMD with our timeout
