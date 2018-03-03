@@ -236,21 +236,22 @@ class BashPageHandler(tornado.web.RequestHandler):
         for name in server_list:
             s = server_list[name]
 
-            build_command = lambda name, prog, target: "function %s() { title %s; tmux_escape %s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no %s \"$@\"; }\n"%(name, name, prog, target)
+            build_command = lambda name, prog, target: "function %s() { title %s; tmux_escape %s %s \"$@\"; }\n"%(name, name, prog, target)
 
             # Add .mosh* commands if we've got a mosh_path:
             if len(s['mosh_path']) != 0:
+                ssh_cmd = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
                 # Add .mosh.direct command
-                prog = "mosh --server=\"%s\""%(s['mosh_path'])
+                prog = "mosh --ssh='%s' --server=\"%s\""%(ssh_cmd, s['mosh_path'])
                 target = "%s@%s"%(s['user'], s['ip'])
                 commands += build_command(name+".mosh.direct", prog, target)
 
                 # Add .mosh.webmux command
-                target = "--ssh='ssh -p %d' --bind=any --port=%d %s@webmux.e.ip.saba.us"%(s['port'], s['port'] + 1000, s['user'])
+                target = "--ssh='%s -p %d' --bind=any --port=%d %s@webmux.e.ip.saba.us"%(ssh_cmd, s['port'], s['port'] + 1000, s['user'])
                 commands += build_command(name+".mosh.webmux", prog, target)
 
             # Add .ssh.direct command
-            prog = "ssh"
+            prog = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
             target = "%s@%s"%(s['user'], s['ip'])
             commands += build_command(name+".ssh.direct", prog, target)
 
