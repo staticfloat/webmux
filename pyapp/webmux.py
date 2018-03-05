@@ -60,7 +60,7 @@ def kill_all_tunnels():
     don't rely upon our list, we instead ask `lsof` to look for all processes
     that are listening on the first 100 ports of our port_base and kill 'em all.
     """
-    lsof_cmd = "sudo lsof -i:%d-%d -P -n"%(port_base, port_base+100)
+    lsof_cmd = "lsof -i:%d-%d -P -n"%(port_base, port_base+100)
     try:
         lsof_output = subprocess.check_output(lsof_cmd.split())
     except subprocess.CalledProcessError:
@@ -72,7 +72,7 @@ def kill_all_tunnels():
     
     ssh_procs = list(set([l.split()[1] for l in lsof_output.split('\n')[1:] if l]))
     for p in ssh_procs:
-        subprocess.call(["sudo", "kill", p])
+        subprocess.call(["kill", p])
 
     return ssh_procs
 
