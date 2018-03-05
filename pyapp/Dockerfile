@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y socat openssh-client openssh-server lso
 # sshd setup
 RUN mkdir /var/run/sshd
 COPY ./host_keys/ /etc/ssh/
+RUN chmod 0600 /etc/ssh/ssh_host*
 RUN echo "PasswordAuthentication no"      >> /etc/ssh/sshd_config; \
     echo "Banner none"                    >> /etc/ssh/sshd_config; \
     echo "GatewayPorts yes"               >> /etc/ssh/sshd_config; \
