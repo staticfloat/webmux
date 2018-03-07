@@ -60,16 +60,8 @@ function webmux_reverse_tunnel()
     trap "exit" INT TERM RETURN
     trap "kill 0" EXIT
 
-    # Use a "timeout" command, if we can, if we can't, well, too bad
-    TIMEOUT=""
-    if [[ -n "$(qwhich gtimeout)" ]]; then
-        TIMEOUT="$(qwhich gtimeout) --foreground 1h"
-    elif [[ -n "$(qwhich timeout)" ]]; then
-        TIMEOUT="$(qwhich timeout) --foreground 1h"
-    fi
-
-    # Initialize SSH_CMD with our timeout
-    SSH_CMD="$TIMEOUT $(which ssh)"
+    # Initialize SSH_CMD
+    SSH_CMD="$(which ssh)"
 
     # Set keyfile to use to login
     SSH_CMD="$SSH_CMD -i ${WEBMUX_SSH_KEY_FILE/#\~/$HOME}"
@@ -83,7 +75,7 @@ function webmux_reverse_tunnel()
         SSH_CMD="$SSH_CMD -R $MOSH_PORT:localhost:$MOSH_PORT"
 
         # Immediately spawn off our own socat to do the local parroting
-        SOCAT_CMD="$TIMEOUT socat tcp4-listen:$MOSH_PORT,reuseaddr,fork udp:localhost:$MOSH_PORT"
+        SOCAT_CMD="socat tcp4-listen:$MOSH_PORT,reuseaddr,fork udp:localhost:$MOSH_PORT"
         $SOCAT_CMD &
     fi
 
@@ -93,18 +85,6 @@ function webmux_reverse_tunnel()
     # Execute the SSH command
     $SSH_CMD
 }
-
-if [[ -z "$(qwhich timeout)" ]] && [[ -z "$(qwhich gtimeout)" ]]; then
-    if [[ "$PLATFORM" == "Darwin" ]]; then
-        brew install coreutils
-    elif [[ -n "$(qwhich apt-get)" ]]; then
-        sudo apt-get install coreutils
-    elif [[ -n "$(qwhich yum)" ]]; then
-        sudo yum install coreutils
-    else
-        echo '`timeout` not found, and I do not know how to install it, continuing without!'
-    fi
-fi
 
 PORT_NUMBER=$(get_port_mapping)
 if [[ -z "$PORT_NUMBER" ]]; then
