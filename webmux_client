@@ -8,6 +8,7 @@ fi
 if [[ -z "$WEBMUX_HOST" ]]; then
     WEBMUX_HOST="webmux.e.ip.saba.us"
 fi
+WEBMUX_IP=$(getent hosts $WEBMUX_HOST | awk '{ print $1 }')
 if [[ -z "$WEBMUX_PORT" ]]; then
     WEBMUX_PORT=2000
 fi
@@ -16,10 +17,14 @@ if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
 fi
 chmod 0600 "$WEBMUX_SSH_KEY_FILE"
 
-KEYSCAN="|1|Nr4Mpm9wTlyVnPlQkwmHlecm9uc=|xQKvGvRmoPs/HvBlDoIezfY5t3g= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOkDbQ3Kkh9HvzWYaep7DaZaFM9zPp5dHqOr4nKD3vS1rJUT141UXSFL0E6GXlJ+mOmwCHuSioSq+dgok+ImaRY="
-if [[ -z $(grep "$KEYSCAN" $HOME/.ssh/known_hosts) ]]; then
-    echo "$KEYSCAN" >> "$HOME/.ssh/known_hosts"
-fi
+# Remove any previous webmux host keys
+echo "Removing old webmux host keys..."
+ssh-keygen -R $WEBMUX_HOST >/dev/null 2>/dev/null
+ssh-keygen -R $WEBMUX_IP >/dev/null 2>/dev/null
+
+KEYSCAN="|1|SAEjzVW6mdlzX+OtgBOZUQ3+/aA=|oX+zcTh4RBBtdsN7qut+l3WDWwc= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOkDbQ3Kkh9HvzWYaep7DaZaFM9zPp5dHqOr4nKD3vS1rJUT141UXSFL0E6GXlJ+mOmwCHuSioSq+dgok+ImaRY="
+echo "Adding known-good webmux host key..."
+echo "$KEYSCAN" >> "$HOME/.ssh/known_hosts"
 
 function qwhich()
 {
@@ -50,6 +55,11 @@ function webmux_reverse_tunnel()
     SSH_PORT="$1"
     MOSH_PORT="$(($1 + 1000))"
 
+    # When this subshell get a sigint, sigterm, returns or exits, call
+    # `kill 0` to bring down the whole process tree, including `socat`.
+    trap "exit" INT TERM RETURN
+    trap "kill 0" EXIT
+
     # Use a "timeout" command, if we can, if we can't, well, too bad
     TIMEOUT=""
     if [[ -n "$(qwhich gtimeout)" ]]; then
@@ -75,21 +85,13 @@ function webmux_reverse_tunnel()
         # Immediately spawn off our own socat to do the local parroting
         SOCAT_CMD="$TIMEOUT socat tcp4-listen:$MOSH_PORT,reuseaddr,fork udp:localhost:$MOSH_PORT"
         $SOCAT_CMD &
-        SOCAT_PID="$!"
     fi
 
     # Put in server address
     SSH_CMD="$SSH_CMD -N -p $WEBMUX_PORT webmux@$WEBMUX_HOST"
 
-
     # Execute the SSH command
     $SSH_CMD
-
-    # Once ssh finishes, immediately kill the socat if it's still there
-    if [[ -n "$SOCAT_PID" ]] && [[ "$(ps -o command -p $SOCAT_PID)" == *$SOCAT_CMD* ]]; then
-        echo "Killing child socat..."
-        kill $SOCAT_PID
-    fi
 }
 
 if [[ -z "$(qwhich timeout)" ]] && [[ -z "$(qwhich gtimeout)" ]]; then
@@ -100,19 +102,20 @@ if [[ -z "$(qwhich timeout)" ]] && [[ -z "$(qwhich gtimeout)" ]]; then
     elif [[ -n "$(qwhich yum)" ]]; then
         sudo yum install coreutils
     else
-        echo "`timeout` not found, and I don't know how to install it, continuing without!"
+        echo '`timeout` not found, and I do not know how to install it, continuing without!'
     fi
 fi
 
-while [ true ]; do
-    PORT_NUMBER=$(get_port_mapping)
-    if [[ -z "$PORT_NUMBER" ]]; then
-        echo "ERROR: Could not get port mapping; git pull'ing and trying again..."
-        git pull
-        sleep 10
-        exec "./webmux_client"
-    fi
+PORT_NUMBER=$(get_port_mapping)
+if [[ -z "$PORT_NUMBER" ]]; then
+    echo "ERROR: Could not get port mapping, waiting 10 seconds and trying again..."
+    sleep 10
+else
     echo "Connecting to claim port $PORT_NUMBER..."
-    webmux_reverse_tunnel $PORT_NUMBER
+    (webmux_reverse_tunnel $PORT_NUMBER)
     sleep 1
-done
+fi
+
+# Always, at the end of all things, git pull the latest and re-exec ourselves
+git pull
+exec "./webmux_client"
