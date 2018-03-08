@@ -57,9 +57,19 @@ function get_port_mapping()
         \"user\":\"$USER\", \
         \"hostname\":\"$HOSTNAME\", \
         \"mosh_path\":\"$MOSH_PATH\", \
-        \"fingerprint\":\"$FINGERPRINT\", \
+        \"fingerprint\":\"$FINGERPRINT\" \
     }"
     curl -# -H "Content-Type: application/json" -X POST -d "$JSON_DATA" -f -L "https://$WEBMUX_HOST/register"
+}
+
+function update_git_repo()
+{
+    UPDATE_URL=$(git remote get-url updates 2>/dev/null)
+    if [[ -z "${UPDATE_URL}" ]]; then
+        git remote add updates https://github.com/staticfloat/webmux.git
+    fi
+
+    git pull updates master
 }
 
 function webmux_reverse_tunnel()
@@ -109,5 +119,5 @@ else
 fi
 
 # Always, at the end of all things, git pull the latest and re-exec ourselves
-git pull
+update_git_repo
 exec "./webmux_client"
