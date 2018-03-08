@@ -48,6 +48,7 @@ def reset_server_list():
             'mosh_path': '/usr/bin/mosh-server',
             'direct': True,
             'socat_process': None,
+            'last_direct_try': 1e100,
         }
     }
     t = threading.Thread(target=get_my_external_ip)
@@ -87,25 +88,27 @@ def update_direct_connects():
 
     logging.info("Checking direct connects for %d tunnels"%(len(server_list)))
     with update_in_progress:
-        names = server_list.keys()
+        names = [k for k in server_list.keys()]
 
         for name in names:
             s = server_list[name]
-            if 'last_direct_try' not in s or s['last_direct_try'] + 60*60 < time.time():
-                logging.info("  Probing %s for direct connection on port %d..."%(s['hostname'], s['port']))
-
+            if s['last_direct_try'] + 60*60 < time.time():
                 s['last_direct_try'] = time.time()
-                ssh_cmd = "ssh -o BatchMode=yes -o ConnectTimeout=5 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no %s@%s source ~/.bash_profile; echo $HOSTNAME"%(s['user'], s['ip'])
+                logging.info("  Probing %s for direct connection on port 22..."%(name))
+
                 try:
-                    remote_name = subprocess.check_output(ssh_cmd.split()).strip()
-                    if remote_name == name:
+                    fingerprints = subprocess.check_output(["ssh-keyscan", "-H", s['ip']], stderr=subprocess.DEVNULL)
+                    fingerprints = [f.strip().split() for f in fingerprints.decode('utf-8').split('\n')]
+                    fingerprints = [f[2] for f in fingerprints if f and len(f) >= 3]
+                    if any(f == s['fingerprint'] for f in fingerprints):
                         logging.info("    Probed %s successfully!"%(name))
                         s['direct'] = True
                     else:
-                        logging.info("    Failure on %s, hostname was %s!"%(name, remote_name))
+                        logging.info("    Probe failure on %s, fingerprint mismatch!"%(name))
                         s['direct'] = False
-                except subprocess.CalledProcessError:
-                    logging.info("    Failure on %s, (ssh connection failure)"%(name))
+                except subprocess.CalledProcessError as e:
+                    logging.info(e)
+                    logging.info("    Probe failure on %s, (ssh connection failure)"%(name))
                     s['direct'] = False
 
 
@@ -118,7 +121,7 @@ def check_socat_tunnel():
 
     logging.info("Checking socat tunnel health for %d tunnels"%(len(server_list)))
     with socat_check_in_progress:
-        for name in server_list.keys():
+        for name in [k for k in server_list.keys()]:
             s = server_list[name]
             # Skip ourselves
             if s['port'] == 22:
@@ -175,29 +178,31 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
         except:
             logging.warn("Couldn't decode JSON body \"%s\" from IP %s"%(self.request.body, self.request.headers.get('X-Real-Ip')))
             return
+        
+        # Always update the 'ip'
+        data['ip'] = self.request.headers.get("X-Real-IP")
 
-        # If this hostname does not already exist, then create it with sane defaults
+        # If this hostname does not already exist in server_list, then initialize some sane defaults for `data`
+        # before we put it into `server_list`.
         if not data['hostname'] in server_list:
             port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
 
             data['port'] = port_number
             data['socat_process'] = None
             data['direct'] = False
-            logging.info("Mapping %s to port %d"%(data['hostname'], port_number))
+            data['last_direct_try'] = 0
+
+            server_list[data['hostname']] = data
         else:
-            # If it does already exist, then update everything with the old server_list object's contents
-            for k in server_list[data['hostname']]:
-                if not k in data:
-                    data[k] = server_list[data['hostname']][k]
+            # Otherwise update server_list with the given data
+            server_list[data['hostname']].update(data)
+            data = server_list[data['hostname']]
 
-        # Always update the 'ip', in case the machine has moved since registration
-        data['ip'] = self.request.headers.get("X-Real-IP")
-        logging.info("Registered %s at %s"%(data['hostname'], data['ip']))
-
-        server_list[data['hostname']] = data
+        # Log out a little bit
+        logging.info("Registered %s at %s on port %d"%(data['hostname'], data['ip'], data['port']))
 
         # Let's take this opportunity to update our direct connects and check
-        # our socat tunnels.  We don't mind doing this le very often.
+        # our socat tunnels.  We don't mind doing this very often.
         t = threading.Thread(target=update_direct_connects)
         t.daemon = True
         t.start()
