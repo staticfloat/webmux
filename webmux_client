@@ -26,6 +26,13 @@ KEYSCAN="|1|SAEjzVW6mdlzX+OtgBOZUQ3+/aA=|oX+zcTh4RBBtdsN7qut+l3WDWwc= ecdsa-sha2
 echo "Adding known-good webmux host key..."
 echo "$KEYSCAN" >> "$HOME/.ssh/known_hosts"
 
+# Find our own SSH fingerprint
+FINGERPRINT=$(ssh-keyscan -H localhost 2>&1 | grep 'ecdsa-sha2-nistp256')
+if [[ -z "$FINGERPRINT" ]]; then
+    echo "ERROR: Could not find own fingerprint!"
+    exit 1
+fi
+
 function qwhich()
 {
     which "$@" 2>/dev/null
@@ -46,7 +53,12 @@ function get_port_mapping()
     if can_mosh; then
         MOSH_PATH="$(qwhich mosh-server)"
     fi
-    JSON_DATA="{\"user\":\"$USER\", \"hostname\":\"$HOSTNAME\", \"mosh_path\":\"$MOSH_PATH\"}"
+    JSON_DATA="{\
+        \"user\":\"$USER\", \
+        \"hostname\":\"$HOSTNAME\", \
+        \"mosh_path\":\"$MOSH_PATH\", \
+        \"fingerprint\":\"$FINGERPRINT\", \
+    }"
     curl -# -H "Content-Type: application/json" -X POST -d "$JSON_DATA" -f -L "https://$WEBMUX_HOST/register"
 }
 
