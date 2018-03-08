@@ -1,5 +1,14 @@
 #!/bin/bash
 
+function get_ip()
+{
+    if [[ "${PLATFORM}" == "Linux" ]]; then
+        getent hosts $1 | awk '{ print $1 }'
+    elif [[ "${PLATFORM}" == "Darwin" ]]; then
+        dscacheutil -q host -a name $1 | grep ip_address | cut -d: -f2 | xargs echo
+    fi
+}
+
 PLATFORM="$(uname)"
 if [[ -z "$HOSTNAME" ]]; then
     HOSTNAME=$(hostname -s)-$RANDOM
@@ -8,13 +17,13 @@ fi
 if [[ -z "$WEBMUX_HOST" ]]; then
     WEBMUX_HOST="webmux.e.ip.saba.us"
 fi
-WEBMUX_IP=$(getent hosts $WEBMUX_HOST | awk '{ print $1 }')
+WEBMUX_IP=$(get_ip $WEBMUX_HOST)
 if [[ -z "$WEBMUX_PORT" ]]; then
     WEBMUX_PORT=2000
 fi
 if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
     WEBMUX_SSH_KEY_FILE="$HOME/etc/secure/ssh/external/webmux_rsa"
-    if [[ ! decrypted ${WEBMUX_SSH_KEY_FILE} ]]; then
+    if ! decrypted "${WEBMUX_SSH_KEY_FILE}"; then
         echo "ERROR: Must decrypt webmux key!"
         exit 1
     fi
