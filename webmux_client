@@ -1,5 +1,10 @@
 #!/bin/bash
 
+function decrypted()
+{
+    [[ -f "$1" ]] && [[ $(head -c 10 "$1") != "GITCRYPT" ]]
+}
+
 function get_ip()
 {
     if [[ "${PLATFORM}" == "Linux" ]]; then
