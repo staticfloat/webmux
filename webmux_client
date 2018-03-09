@@ -92,6 +92,7 @@ function update_git_repo()
 
 function webmux_reverse_tunnel()
 {
+    local SSH_OPTS=()
     SSH_PORT="$1"
     MOSH_PORT="$(($1 + 1000))"
 
@@ -100,30 +101,36 @@ function webmux_reverse_tunnel()
     trap "exit" INT TERM RETURN
     trap "kill 0" EXIT
 
-    # Initialize SSH_CMD
-    SSH_CMD="$(which ssh)"
-
     # Set keyfile to use to login
-    SSH_CMD="$SSH_CMD -i ${WEBMUX_SSH_KEY_FILE/#\~/$HOME}"
+    SSH_OPTS+=("-i${WEBMUX_SSH_KEY_FILE/#\~/$HOME}")
+
+    # Tell SSH to quit if it can't start forwarding ports
+    SSH_OPTS+=("-o ExitOnForwardFailure=yes")
+
+    # Tell SSH to quit if heartbeats stop working for more than two minutes at a time
+    SSH_OPTS+=("-o ServerAliveCountMax=2")
+    SSH_OPTS+=("-o ServerAliveInterval=60")
 
     # Create port forwarding for SSH
-    SSH_CMD="$SSH_CMD -R $SSH_PORT:localhost:22"
+    SSH_OPTS+=("-R $SSH_PORT:localhost:22")
+
+    # Operate on the WEBMUX_PORT
+    SSH_OPTS+=("-p $WEBMUX_PORT")
+
+    # Don't ask for a tty
+    SSH_OPTS+=("-N")
 
     # If we can tunnel mosh, then start up a socat instance running on here to
     # parrot incoming UDP-over-TCP packets to our mosh instance
     if can_mosh; then
-        SSH_CMD="$SSH_CMD -R $MOSH_PORT:localhost:$MOSH_PORT"
+        SSH_OPTS+=("-R $MOSH_PORT:localhost:$MOSH_PORT")
 
         # Immediately spawn off our own socat to do the local parroting
-        SOCAT_CMD="socat tcp4-listen:$MOSH_PORT,reuseaddr,fork udp:localhost:$MOSH_PORT"
-        $SOCAT_CMD &
+        socat tcp4-listen:$MOSH_PORT,reuseaddr,fork udp:localhost:$MOSH_PORT &
     fi
 
-    # Put in server address
-    SSH_CMD="$SSH_CMD -N -p $WEBMUX_PORT webmux@$WEBMUX_HOST"
-
-    # Execute the SSH command
-    $SSH_CMD
+    # Put in server address and execute!
+    "$(which ssh)" "${SSH_OPTS[@]}" "webmux@$WEBMUX_HOST"
 }
 
 PORT_NUMBER=$(get_port_mapping)
