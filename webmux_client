@@ -78,7 +78,7 @@ function get_port_mapping()
         \"user\":\"${USER}\", \
         \"hostname\":\"${HOSTNAME}\", \
         \"mosh_path\":\"${MOSH_PATH}\", \
-        \"fingerprint\":\"${FINGERPRINT}\" \
+        \"fingerprint\":\"${FINGERPRINT}\", \
         \"host_port\":\"${HOST_PORT}\" \
     }"
     curl -# -H "Content-Type: application/json" -X POST -d "${JSON_DATA}" -f -L "https://${WEBMUX_HOST}/register"

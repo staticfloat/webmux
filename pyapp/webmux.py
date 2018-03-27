@@ -204,7 +204,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             data = server_list[data['hostname']]
 
         # Log out a little bit
-        logging.info("Registered %s at %s on port %d"%(data['hostname'], data['host_ip'], data['port']))
+        logging.info("Registered %s at %s:%d on webmux port %d"%(data['hostname'], data['host_ip'], data['host_port'], data['webmux_port']))
 
         # Let's take this opportunity to update our direct connects and check
         # our socat tunnels.  We don't mind doing this very often.
@@ -214,7 +214,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
         t = threading.Thread(target=check_socat_tunnel)
         t.daemon = True
         t.start()
-        self.write(str(data['port']))
+        self.write(str(data['webmux_port']))
 
 class ResetPageHandler(tornado.web.RequestHandler):
     """Reset all SSH connections forwarding ports"""
@@ -228,7 +228,7 @@ class ResetPageHandler(tornado.web.RequestHandler):
 class TerminalPageHandler(tornado.web.RequestHandler):
     def get_host(self, port_number):
         for hostname in server_list:
-            if server_list[hostname]['port'] == port_number:
+            if server_list[hostname]['webmux_port'] == port_number:
                 return hostname
         return "host on port " + port_number
 
