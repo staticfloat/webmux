@@ -187,10 +187,13 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
         # Always update the 'host_ip'
         data['host_ip'] = self.request.headers.get("X-Real-IP")
 
+        # Convert `host_port` to an integer
+        data['host_port'] = int(data['host_port'])
+
         # If this hostname does not already exist in server_list, then initialize some sane defaults for `data`
         # before we put it into `server_list`.
         if not data['hostname'] in server_list:
-            port_number = max([int(server_list[k]['webmux_port']) for k in server_list] + [port_base - 1]) + 1
+            port_number = max([server_list[k]['webmux_port'] for k in server_list] + [port_base - 1]) + 1
 
             data['webmux_port'] = port_number
             data['socat_process'] = None
