@@ -24,7 +24,7 @@ server_list = {}
 
 def get_my_external_ip():
     global server_list
-    while server_list['sophia']['ip'] == 'saba.us':
+    while server_list['sophia']['host_ip'] == 'saba.us':
         try:
             findTags = re.compile(r'<.*?>')
             findIP = re.compile(r'\d+\.\d+\.\d+\.\d+')
@@ -32,8 +32,8 @@ def get_my_external_ip():
             html = requests.get('http://checkip.dyndns.org' ).text()
             ipaddress = findIP.search(findTags.sub('', html))
             if ipaddress is not None:
-                server_list['sophia']['ip'] = ipaddress.group(0)
-                logging.info("Found external IP to be %s"(server_list['sophia']['ip']))
+                server_list['sophia']['host_ip'] = ipaddress.group(0)
+                logging.info("Found external IP to be %s"%(server_list['sophia']['host_ip']))
         except:
             pass
 
@@ -42,8 +42,9 @@ def reset_server_list():
     server_list = {
         'sophia': {
             'hostname': 'sophia',
-            'port': 22,
-            'ip': 'saba.us',
+            'host_port': 22,
+            'webmux_port': 22,
+            'host_ip': 'saba.us',
             'user': 'sabae',
             'mosh_path': '/usr/bin/mosh-server',
             'direct': True,
@@ -94,10 +95,11 @@ def update_direct_connects():
             s = server_list[name]
             if s['last_direct_try'] + 60*60 < time.time():
                 s['last_direct_try'] = time.time()
-                logging.info("  Probing %s for direct connection on port 22..."%(name))
+                logging.info("  Probing %s for direct connection on port %d..."%(name, s['host_port']))
 
                 try:
-                    fingerprints = subprocess.check_output(["ssh-keyscan", "-H", s['ip']], stderr=subprocess.DEVNULL)
+                    finger_cmd = ["ssh-keyscan", "-H", "-p", str(s['host_port']), s['host_ip']]
+                    fingerprints = subprocess.check_output(finger_cmd, stderr=subprocess.DEVNULL)
                     fingerprints = [f.strip().split() for f in fingerprints.decode('utf-8').split('\n')]
                     fingerprints = [f[2] for f in fingerprints if f and len(f) >= 3]
                     if any(f == s['fingerprint'] for f in fingerprints):
@@ -117,23 +119,23 @@ def check_socat_tunnel():
     """
     Ensures that our mosh-enabling socat tunnels are in place on the server
     """
-    global server_list, socat_tunnels_lock
+    global server_list
 
     logging.info("Checking socat tunnel health for %d tunnels"%(len(server_list)))
     with socat_check_in_progress:
         for name in [k for k in server_list.keys()]:
             s = server_list[name]
             # Skip ourselves
-            if s['port'] == 22:
+            if s['webmux_port'] == 22:
                 continue
         
             # Was this guy's process never started, or worse, died?
             if s['socat_process'] == None or s['socat_process'].poll() != None:
-                logging.info("Starting socat process for %s on port %d"%(s['hostname'], s['port'] + 1000))
+                logging.info("Starting socat process for %s on port %d"%(s['hostname'], s['webmux_port'] + 1000))
                 server_list[name]['socat_process'] = subprocess.Popen([
                     'socat',
-                    'udp4-recvfrom:%d,reuseaddr,fork'%(s['port'] + 1000),
-                    'tcp:localhost:%d'%(s['port'] + 1000),
+                    'udp4-recvfrom:%d,reuseaddr,fork'%(s['webmux_port'] + 1000),
+                    'tcp:localhost:%d'%(s['webmux_port'] + 1000),
                 ])
 
 class WebmuxTermManager(terminado.NamedTermManager):
@@ -143,6 +145,9 @@ class WebmuxTermManager(terminado.NamedTermManager):
         super(WebmuxTermManager, self).__init__(**kwargs)
 
     def get_terminal(self, port_number):
+        from terminado.management import MaxTerminalsReached
+
+        # This is important lel
         assert port_number is not None
 
         if port_number in self.terminals:
@@ -152,11 +157,11 @@ class WebmuxTermManager(terminado.NamedTermManager):
             raise MaxTerminalsReached(self.max_terminals)
 
         # Find server mapped to this port
-        name = filter(lambda n: server_list[n]['port'] == int(port_number), server_list.keys())[0]
+        name = next(filter(lambda n: server_list[n]['webmux_port'] == int(port_number), server_list.keys()))
         s = server_list[name]
 
         # Create new terminal
-        logging.info("Attempting to connect to: %s@%s:%d", s['user'], name, s['port'])
+        logging.info("Attempting to connect to: %s@%s:%d", s['user'], name, s['webmux_port'])
         self.shell_command = ["ssh", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking no", "-p", port_number, s['user']+"@webmux.e.ip.saba.us"]
         term = self.new_terminal()
         term.term_name = port_number
@@ -179,15 +184,15 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             logging.warn("Couldn't decode JSON body \"%s\" from IP %s"%(self.request.body, self.request.headers.get('X-Real-Ip')))
             return
         
-        # Always update the 'ip'
-        data['ip'] = self.request.headers.get("X-Real-IP")
+        # Always update the 'host_ip'
+        data['host_ip'] = self.request.headers.get("X-Real-IP")
 
         # If this hostname does not already exist in server_list, then initialize some sane defaults for `data`
         # before we put it into `server_list`.
         if not data['hostname'] in server_list:
-            port_number = max([int(server_list[k]['port']) for k in server_list] + [port_base - 1]) + 1
+            port_number = max([int(server_list[k]['webmux_port']) for k in server_list] + [port_base - 1]) + 1
 
-            data['port'] = port_number
+            data['webmux_port'] = port_number
             data['socat_process'] = None
             data['direct'] = False
             data['last_direct_try'] = 0
@@ -199,7 +204,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             data = server_list[data['hostname']]
 
         # Log out a little bit
-        logging.info("Registered %s at %s on port %d"%(data['hostname'], data['ip'], data['port']))
+        logging.info("Registered %s at %s on port %d"%(data['hostname'], data['host_ip'], data['port']))
 
         # Let's take this opportunity to update our direct connects and check
         # our socat tunnels.  We don't mind doing this very often.
@@ -227,7 +232,7 @@ class TerminalPageHandler(tornado.web.RequestHandler):
                 return hostname
         return "host on port " + port_number
 
-    """Render the /shell/[\d]+ pages"""
+    """Render the /shell/[\\d]+ pages"""
     def get(self, port_number):
         return self.render("term.html", static=self.static_url,
                            ws_url_path="/_websocket/"+port_number,
@@ -241,47 +246,72 @@ class BashPageHandler(tornado.web.RequestHandler):
         for name in server_list:
             s = server_list[name]
 
-            build_command = lambda name, prog, target: "function %s() { title %s; tmux_escape %s %s \"$@\"; title; }\n"%(name, name, prog, target)
+            build_command = lambda name, prog: "function %s() { title %s; tmux_escape %s \"$@\"; title; }\n"%(name, name, prog)
+            ssh_cmd = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
 
             # Add .mosh* commands if we've got a mosh_path:
             if len(s['mosh_path']) != 0:
-                ssh_cmd = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
                 # Add .mosh.direct command
-                prog = "mosh --ssh='%s' --server=\"%s\""%(ssh_cmd, s['mosh_path'])
-                target = "%s@%s"%(s['user'], s['ip'])
-                commands += build_command(name+".mosh.direct", prog, target)
+                prog_base = "mosh --server=\"%s\" --bind=any"%(s['mosh_path'])
+                prog = prog_base + "--ssh='%s -p %d' %s@%s"%(ssh_cmd, s['host_port'], s['user'], s['host_ip'])
+                commands += build_command(name+".mosh.direct", prog)
 
                 # Add .mosh.webmux command
-                target = "--ssh='%s -p %d' --bind=any --port=%d %s@webmux.e.ip.saba.us"%(ssh_cmd, s['port'], s['port'] + 1000, s['user'])
-                commands += build_command(name+".mosh.webmux", prog, target)
+                prog = prog_base + "--ssh='%s -p %d' --port=%d %s@webmux.e.ip.saba.us"%(ssh_cmd, s['webmux_port'], s['webmux_port'] + 1000, s['user'])
+                commands += build_command(name+".mosh.webmux", prog)
 
             # Add .ssh.direct command
-            prog = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
-            target = "%s@%s"%(s['user'], s['ip'])
-            commands += build_command(name+".ssh.direct", prog, target)
+            prog = ssh_cmd + "-p %d %s@%s"%(s['host_port'], s['user'], s['host_ip'])
+            commands += build_command(name+".ssh.direct", prog)
 
             # Add .ssh.webmux command
-            target = "-p %d %s@webmux.e.ip.saba.us"%(s['port'], s['user'])
-            commands += build_command(name+".ssh.webmux", prog, target)
+            prog = ssh_cmd + "-p %d %s@webmux.e.ip.saba.us"%(s['webmux_port'], s['user'])
+            commands += build_command(name+".ssh.webmux", prog)
 
             # Decide whether we should prefer direct or webmux:
             direction = "direct"
             if not s["direct"]:
                 direction = "webmux"
-
-            # Add shortcuts like "name.ssh" and "name.mosh" that default to direct/webmux
-            for m in ["ssh", "mosh"]:
-                commands += "function %s.%s() { %s.%s.%s $*; };\n"%(name, m, name, m, direction)
-            # Add shortcuts like "name.direct" and "name.webmux" that default to ssh/mosh
-            for m in ["direct", "webmux"]:
-                commands += "function %s.%s() { %s.ssh.%s $*; };\n"%(name, m, name, m)
-
+            
             # Decide whether we should prefer mosh or ssh
+            prefer_prog = "ssh"
             if len(s['mosh_path']) != 0:
-                commands += "function %s() { if [[ -n $(which mosh 2>/dev/null) ]]; then %s.mosh $*; else %s.ssh $*; fi; }\n"%(name, name, name)
-            else:
-                commands += "function %s() { %s.ssh $*; }\n"%(name, name)
+                prefer_prog = "mosh"
 
+            # Start with the big kahuna; `mieli` will sub out to `mieli.ssh` or `mieli.mosh` first:
+            if prefer_prog == "mosh":
+                # If we prefer mosh for this target, check if the connecting host
+                # even has `mosh` available, and if so, try to use it.  :)
+                commands += """
+                function %s() {
+                    if [[ -n $(which mosh 2>/dev/null) ]]; then
+                        %s.mosh $*;
+                    else
+                        %s.ssh $*;
+                    fi;
+                }
+                """%(name, name, name)
+            else:
+                # If we don't prefer mosh, just jump straight to `ssh`.
+                commands += """
+                function %s() {
+                    %s.ssh $*;
+                }
+                """%(name, name)
+
+            # Next, add shortcust like "name.ssh" and "name.mosh" that default to direct/webmux
+            for prog in ["ssh", "mosh"]:
+                commands += """
+                function %s.%s() {
+                    %s.%s.%s $*;
+                };"""%(name, prog, name, prog, direction)
+
+            # Finally, add shortcust like "name.direct" and "name.webmux" that default to ssh/mosh
+            for direction in ["direct", "webmux"]:
+                commands += """
+                function %s.%s() {
+                    %s.%s.%s $*;
+                };"""%(name, direction, name, prefer_prog, direction)
         self.write(commands)
 
 

@@ -15,38 +15,41 @@ function get_ip()
 }
 
 PLATFORM="$(uname)"
-if [[ -z "$HOSTNAME" ]]; then
-    HOSTNAME=$(hostname -s)-$RANDOM
+if [[ -z "${HOSTNAME}" ]]; then
+    HOSTNAME=$(hostname -s)-${RANDOM}
 fi
 
-if [[ -z "$WEBMUX_HOST" ]]; then
-    WEBMUX_HOST="webmux.e.ip.saba.us"
-fi
-WEBMUX_IP=$(get_ip $WEBMUX_HOST)
-if [[ -z "$WEBMUX_PORT" ]]; then
-    WEBMUX_PORT=2000
-fi
-if [[ -z "$WEBMUX_SSH_KEY_FILE" ]]; then
-    WEBMUX_SSH_KEY_FILE="$HOME/etc/secure/ssh/external/webmux_rsa"
-    if ! decrypted "${WEBMUX_SSH_KEY_FILE}"; then
-        echo "ERROR: Must decrypt webmux key!"
-        exit 1
+# This is the ssh port that you're running sshd on.
+if [[ -z "${HOST_PORT}" ]]; then
+    HOST_PORT=$(grep -E '^[^#]*Port [0-9]+' /etc/ssh/sshd_config 2>/dev/null | awk '{print $2 }')
+    if [[ -z "${HOST_PORT}" ]]; then
+        echo "Unable to auto-guess host SSH port; assuming 22..."
+        HOST_PORT=22
     fi
 fi
-chmod 0600 "$WEBMUX_SSH_KEY_FILE"
+
+WEBMUX_HOST="${WEBMUX_HOST:-webmux.e.ip.saba.us}"
+WEBMUX_PORT="${WEBMUX_PORT:-2000}"
+WEBMUX_IP=$(get_ip ${WEBMUX_HOST})
+WEBMUX_SSH_KEY_FILE="${WEBMUX_SSH_KEY_FILE:-${HOME}/etc/secure/ssh/external/webmux_rsa}"
+if ! decrypted "${WEBMUX_SSH_KEY_FILE}"; then
+    echo "ERROR: Must decrypt webmux key!"
+    exit 1
+fi
+chmod 0600 "${WEBMUX_SSH_KEY_FILE}"
 
 # Remove any previous webmux host keys
 echo "Removing old webmux host keys..."
-ssh-keygen -R $WEBMUX_HOST >/dev/null 2>/dev/null
-ssh-keygen -R $WEBMUX_IP >/dev/null 2>/dev/null
+ssh-keygen -R ${WEBMUX_HOST} >/dev/null 2>/dev/null
+ssh-keygen -R ${WEBMUX_IP} >/dev/null 2>/dev/null
 
 KEYSCAN="|1|SAEjzVW6mdlzX+OtgBOZUQ3+/aA=|oX+zcTh4RBBtdsN7qut+l3WDWwc= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOkDbQ3Kkh9HvzWYaep7DaZaFM9zPp5dHqOr4nKD3vS1rJUT141UXSFL0E6GXlJ+mOmwCHuSioSq+dgok+ImaRY="
 echo "Adding known-good webmux host key..."
-echo "$KEYSCAN" >> "$HOME/.ssh/known_hosts"
+echo "${KEYSCAN}" >> "${HOME}/.ssh/known_hosts"
 
 # Find our own SSH fingerprint
-FINGERPRINT=$(ssh-keyscan -H localhost 2>&1 | grep 'ecdsa-sha2-nistp256' | awk '{ print $3 }')
-if [[ -z "$FINGERPRINT" ]]; then
+FINGERPRINT=$(ssh-keyscan -H -p ${HOST_PORT} localhost 2>&1 | grep 'ecdsa-sha2-nistp256' | awk '{ print $3 }')
+if [[ -z "${FINGERPRINT}" ]]; then
     echo "ERROR: Could not find own fingerprint!"
     exit 1
 fi
@@ -72,12 +75,13 @@ function get_port_mapping()
         MOSH_PATH="$(qwhich mosh-server)"
     fi
     JSON_DATA="{\
-        \"user\":\"$USER\", \
-        \"hostname\":\"$HOSTNAME\", \
-        \"mosh_path\":\"$MOSH_PATH\", \
-        \"fingerprint\":\"$FINGERPRINT\" \
+        \"user\":\"${USER}\", \
+        \"hostname\":\"${HOSTNAME}\", \
+        \"mosh_path\":\"${MOSH_PATH}\", \
+        \"fingerprint\":\"${FINGERPRINT}\" \
+        \"host_port\":\"${HOST_PORT}\" \
     }"
-    curl -# -H "Content-Type: application/json" -X POST -d "$JSON_DATA" -f -L "https://$WEBMUX_HOST/register"
+    curl -# -H "Content-Type: application/json" -X POST -d "${JSON_DATA}" -f -L "https://${WEBMUX_HOST}/register"
 }
 
 function update_git_repo()
@@ -112,10 +116,10 @@ function webmux_reverse_tunnel()
     SSH_OPTS+=("-o ServerAliveInterval=60")
 
     # Create port forwarding for SSH
-    SSH_OPTS+=("-R $SSH_PORT:localhost:22")
+    SSH_OPTS+=("-R ${SSH_PORT}:localhost:${HOST_PORT}")
 
     # Operate on the WEBMUX_PORT
-    SSH_OPTS+=("-p $WEBMUX_PORT")
+    SSH_OPTS+=("-p ${WEBMUX_PORT}")
 
     # Don't ask for a tty
     SSH_OPTS+=("-N")
@@ -123,23 +127,23 @@ function webmux_reverse_tunnel()
     # If we can tunnel mosh, then start up a socat instance running on here to
     # parrot incoming UDP-over-TCP packets to our mosh instance
     if can_mosh; then
-        SSH_OPTS+=("-R $MOSH_PORT:localhost:$MOSH_PORT")
+        SSH_OPTS+=("-R ${MOSH_PORT}:localhost:${MOSH_PORT}")
 
         # Immediately spawn off our own socat to do the local parroting
-        socat tcp4-listen:$MOSH_PORT,reuseaddr,fork udp:localhost:$MOSH_PORT &
+        socat tcp4-listen:${MOSH_PORT},reuseaddr,fork udp:localhost:${MOSH_PORT} &
     fi
 
     # Put in server address and execute!
-    "$(which ssh)" "${SSH_OPTS[@]}" "webmux@$WEBMUX_HOST"
+    "$(which ssh)" "${SSH_OPTS[@]}" "webmux@${WEBMUX_HOST}"
 }
 
 PORT_NUMBER=$(get_port_mapping)
-if [[ -z "$PORT_NUMBER" ]]; then
+if [[ -z "${PORT_NUMBER}" ]]; then
     echo "ERROR: Could not get port mapping, waiting 10 seconds and trying again..."
     sleep 10
 else
-    echo "Connecting to claim port $PORT_NUMBER..."
-    (webmux_reverse_tunnel $PORT_NUMBER)
+    echo "Connecting to claim port ${PORT_NUMBER}..."
+    (webmux_reverse_tunnel ${PORT_NUMBER})
     sleep 1
 fi
 
