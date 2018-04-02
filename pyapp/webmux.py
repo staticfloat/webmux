@@ -255,7 +255,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             # Add .mosh* commands if we've got a mosh_path:
             if len(s['mosh_path']) != 0:
                 # Add .mosh.direct command
-                prog_base = "mosh --server=\"%s\" --bind=any"%(s['mosh_path'])
+                prog_base = "mosh --server=\"%s\" --bind=any "%(s['mosh_path'])
                 prog = prog_base + "--ssh='%s -p %d' %s@%s"%(ssh_cmd, s['host_port'], s['user'], s['host_ip'])
                 commands += build_command(name+".mosh.direct", prog)
 
