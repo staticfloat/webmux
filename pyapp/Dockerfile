@@ -27,6 +27,12 @@ RUN chmod 0600 /home/webmux/.ssh/authorized_keys; \
     chmod 0700 /home/webmux/.ssh; \
     chown webmux:webmux -R /home/webmux
 
+# Add our private key in so that the web in webmux works
+RUN mkdir -p /root/.ssh
+COPY id_rsa /root/.ssh/
+RUN chmod 0600 /root/.ssh/id_rsa && \
+    chmod 0700 /root/.ssh
+
 # Add python code
 WORKDIR /app
 COPY . /app/

@@ -136,7 +136,7 @@ def check_socat_tunnel():
                     'socat',
                     'udp4-recvfrom:%d,reuseaddr,fork'%(s['webmux_port'] + 1000),
                     'tcp:localhost:%d'%(s['webmux_port'] + 1000),
-                ])
+                ], stderr=subprocess.DEVNULL)
 
 class WebmuxTermManager(terminado.NamedTermManager):
     """Share terminals between websockets connected to the same endpoint.

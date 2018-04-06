@@ -12,6 +12,6 @@
 <body>
     <h1>Server list: (<a href="/reset">reset</a>)</h1>
     {% for name in sorted(server_list.keys()) %}
-    <li> <a href="/shell/{{ server_list[name]['port'] }}">{{ name }} - <b>{{ server_list[name]['user'] }}@{{ server_list[name]['ip'] }}</b>:22 -> {{ server_list[name]['port'] }}</a> <br />
+    <li> <a href="/shell/{{ server_list[name]['webmux_port'] }}">{{ name }} - <b>{{ server_list[name]['user'] }}@{{ server_list[name]['host_ip'] }}</b>:{{server_list[name]['host_port']}} -> {{ server_list[name]['webmux_port'] }}</a> <br />
     {% end %}
 </body>
