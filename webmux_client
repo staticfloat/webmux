@@ -122,6 +122,9 @@ function webmux_reverse_tunnel()
     SSH_OPTS+=("-o ServerAliveCountMax=2")
     SSH_OPTS+=("-o ServerAliveInterval=60")
 
+    # Force SSH to use `ssh-rsa` as the host key algorithm
+    SSH_OPTS+=("-o HostKeyAlgorithms=ssh-rsa")
+
     # Create port forwarding for SSH
     SSH_OPTS+=("-R ${SSH_PORT}:localhost:${HOST_PORT}")
 
