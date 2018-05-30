@@ -44,12 +44,12 @@ echo "Removing old webmux host keys..."
 ssh-keygen -R ${WEBMUX_HOST} >/dev/null 2>/dev/null
 ssh-keygen -R ${WEBMUX_IP} >/dev/null 2>/dev/null
 
-KEYSCAN="|1|SAEjzVW6mdlzX+OtgBOZUQ3+/aA=|oX+zcTh4RBBtdsN7qut+l3WDWwc= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOkDbQ3Kkh9HvzWYaep7DaZaFM9zPp5dHqOr4nKD3vS1rJUT141UXSFL0E6GXlJ+mOmwCHuSioSq+dgok+ImaRY="
+KEYSCAN="|1|ZOIarPVbtuwYLS0egWYT2aZJ3eY=|EOtpeXA9r8O9vsJZXJS0lGgDujg= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDKcp/fVkN8tJ9Ip8xV9b+xPdipB7j0nJy02bfMmWeQ6S09W4fC+eNfF/xAU9AhdMT5F67tANn/cVZFUIOsh03NK742llYuMeEmYv1Df3k+XoVcbJuibSjiHDoZLiaq0IhnIaR7kMZV5tlHG1py0CGeBA6XlUE5QRvVF+HqBmWrbTMqyEiuTH9PlfQ5CbmgcTiABu2h0J32nVow8VTH5UDwDtcL9/NRz9LZkOX7Qo9IYeDe50O+EoIFGKSk8a177SLmYCaEIq3LmVZvXcKfwebDO3a1u/1NxVmcyDRpTSfGDAtEcRj5bifMgzjvPoVoLpjNBIBLoy1F79HCJV5oIH43"
 echo "Adding known-good webmux host key..."
 echo "${KEYSCAN}" >> "${HOME}/.ssh/known_hosts"
 
 # Find our own SSH fingerprint
-FINGERPRINT=$(ssh-keyscan -H -p ${HOST_PORT} localhost 2>&1 | grep 'ecdsa-sha2-nistp256' | awk '{ print $3 }')
+FINGERPRINT=$(ssh-keyscan -H -p ${HOST_PORT} -t ssh-rsa localhost 2>&1 | grep 'ssh-rsa' | awk '{ print $3 }')
 if [[ -z "${FINGERPRINT}" ]]; then
     echo "ERROR: Could not find own fingerprint!"
     exit 1
