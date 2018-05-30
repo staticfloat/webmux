@@ -22,7 +22,12 @@ fi
 
 # This is the ssh port that you're running sshd on.
 if [[ -z "${HOST_PORT}" ]]; then
-    HOST_PORT=$(grep -E '^[^#]*Port [0-9]+' /etc/ssh/sshd_config 2>/dev/null | awk '{print $2 }')
+    for SSH_CONF_FILE in /etc/ssh/sshd_config /etc/sshd_config; do
+        HOST_PORT=$(grep -E '^[^#]*Port [0-9]+' $SSH_CONF_FILE 2>/dev/null | awk '{print $2 }')
+        if [[ -n "${HOST_PORT}" ]]; then
+            break
+        fi
+    done
     if [[ -z "${HOST_PORT}" ]]; then
         echo "Unable to auto-guess host SSH port; assuming 22..."
         HOST_PORT=22
