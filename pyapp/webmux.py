@@ -133,9 +133,9 @@ def check_socat_tunnel():
             if s['socat_process'] == None or s['socat_process'].poll() != None:
                 logging.info("Starting socat process for %s on port %d"%(s['hostname'], s['webmux_port'] + 1000))
                 server_list[name]['socat_process'] = subprocess.Popen([
-                    'socat',
-                    'udp4-recvfrom:%d,reuseaddr,fork'%(s['webmux_port'] + 1000),
-                    'tcp:localhost:%d'%(s['webmux_port'] + 1000),
+                    'bash',
+                    '-c',
+                    'while [ true ]; do socat -T22 udp4-recvfrom:%d,reuseaddr,fork tcp:localhost:%d; done'%(s['webmux_port'] + 1000, s['webmux_port'] + 1000),
                 ], stderr=subprocess.DEVNULL)
 
 class WebmuxTermManager(terminado.NamedTermManager):

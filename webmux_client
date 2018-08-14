@@ -47,11 +47,12 @@ chmod 0600 "${WEBMUX_SSH_KEY_FILE}"
 # Remove any previous webmux host keys
 echo "Removing old webmux host keys..."
 ssh-keygen -R "[${WEBMUX_HOST}]:${WEBMUX_PORT}" >/dev/null 2>/dev/null
+ssh-keygen -R "[${WEBMUX_HOST}]" >/dev/null 2>/dev/null
 ssh-keygen -R "[${WEBMUX_IP}]:${WEBMUX_PORT}" >/dev/null 2>/dev/null
 
 KEYSCAN="|1|ZOIarPVbtuwYLS0egWYT2aZJ3eY=|EOtpeXA9r8O9vsJZXJS0lGgDujg= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDKcp/fVkN8tJ9Ip8xV9b+xPdipB7j0nJy02bfMmWeQ6S09W4fC+eNfF/xAU9AhdMT5F67tANn/cVZFUIOsh03NK742llYuMeEmYv1Df3k+XoVcbJuibSjiHDoZLiaq0IhnIaR7kMZV5tlHG1py0CGeBA6XlUE5QRvVF+HqBmWrbTMqyEiuTH9PlfQ5CbmgcTiABu2h0J32nVow8VTH5UDwDtcL9/NRz9LZkOX7Qo9IYeDe50O+EoIFGKSk8a177SLmYCaEIq3LmVZvXcKfwebDO3a1u/1NxVmcyDRpTSfGDAtEcRj5bifMgzjvPoVoLpjNBIBLoy1F79HCJV5oIH43"
 echo "Adding known-good webmux host key..."
-echo "${KEYSCAN}" >> "${HOME}/.ssh/known_hosts"
+(echo "${KEYSCAN}"; cat "${HOME}/.ssh/known_hosts") | uniq > "${HOME}/.ssh/known_hosts"
 
 # Find our own SSH fingerprint
 FINGERPRINT=$(ssh-keyscan -H -p ${HOST_PORT} -t ssh-rsa localhost 2>&1 | grep 'ssh-rsa' | awk '{ print $3 }')
@@ -140,11 +141,17 @@ function webmux_reverse_tunnel()
         SSH_OPTS+=("-R ${MOSH_PORT}:localhost:${MOSH_PORT}")
 
         # Immediately spawn off our own socat to do the local parroting
-        socat tcp4-listen:${MOSH_PORT},reuseaddr,fork udp:localhost:${MOSH_PORT} &
+        (while true; do socat -T15 tcp4-listen:${MOSH_PORT},reuseaddr,fork udp:localhost:${MOSH_PORT}; done) &
+        SOCAT_PID=$!
     fi
 
     # Put in server address and execute!
     "$(which ssh)" "${SSH_OPTS[@]}" "webmux@${WEBMUX_HOST}"
+
+    # If we have a SOCAT_PID, make sure it's dead
+    if [[ -n "${SOCAT_PID}" ]]; then
+        kill ${SOCAT_PID}
+    fi
 }
 
 PORT_NUMBER=$(get_port_mapping)
