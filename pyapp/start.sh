@@ -5,6 +5,7 @@ trap "exit" INT TERM
 trap "kill 0" EXIT
 
 # Start sshd in the background
+echo "Starting sshd..."
 /usr/sbin/sshd
 
 # start our python app in the background
