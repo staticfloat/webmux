@@ -250,7 +250,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             s = server_list[name]
 
             build_command = lambda name, prog: "function %s() { title %s; tmux_escape %s \"$@\"; title; }\n"%(name, name, prog)
-            ssh_cmd = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
+            ssh_cmd = "ssh -A -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
 
             # Add .mosh* commands if we've got a mosh_path:
             if len(s['mosh_path']) != 0:
