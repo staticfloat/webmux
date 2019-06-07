@@ -81,25 +81,11 @@ function qwhich()
     which "$@" 2>/dev/null
 }
 
-# Returns true (0) if we've got a `mosh-server` and a `socat` on the path
-function can_mosh
-{
-    if [[ -n "$(qwhich mosh-server)" ]] && [[ -n "$(qwhich socat)" ]]; then
-        return 0
-    fi
-    return 1
-}
-
 function get_port_mapping()
 {
-    MOSH_PATH=""
-    if can_mosh; then
-        MOSH_PATH="$(qwhich mosh-server)"
-    fi
     JSON_DATA="{\
         \"user\":\"${USER}\", \
         \"hostname\":\"${HOSTNAME}\", \
-        \"mosh_path\":\"${MOSH_PATH}\", \
         \"fingerprint\":\"${FINGERPRINT}\", \
         \"host_port\":\"${HOST_PORT}\", \
         \"local_ip\":\"${LOCAL_IP}\" \
@@ -125,7 +111,7 @@ function webmux_reverse_tunnel()
     MOSH_PORT="$(($1 + 1000))"
 
     # When this subshell get a sigint, sigterm, returns or exits, call
-    # `kill 0` to bring down the whole process tree, including `socat`.
+    # `kill 0` to bring down the whole process tree.
     trap "exit" INT TERM RETURN
     trap "kill 0" EXIT
 
@@ -151,23 +137,8 @@ function webmux_reverse_tunnel()
     # Don't ask for a tty
     SSH_OPTS+=("-N")
 
-    # If we can tunnel mosh, then start up a socat instance running on here to
-    # parrot incoming UDP-over-TCP packets to our mosh instance
-    if can_mosh; then
-        SSH_OPTS+=("-R ${MOSH_PORT}:localhost:${MOSH_PORT}")
-
-        # Immediately spawn off our own socat to do the local parroting
-        (while true; do socat -T15 tcp4-listen:${MOSH_PORT},reuseaddr,fork udp:localhost:${MOSH_PORT}; done) &
-        SOCAT_PID=$!
-    fi
-
     # Put in server address and execute!
     "$(which ssh)" "${SSH_OPTS[@]}" "webmux@${WEBMUX_HOST}"
-
-    # If we have a SOCAT_PID, make sure it's dead
-    if [[ -n "${SOCAT_PID}" ]]; then
-        kill ${SOCAT_PID}
-    fi
 }
 
 PORT_NUMBER=$(get_port_mapping)
