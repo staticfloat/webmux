@@ -208,7 +208,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             fi
         }
 
-        wireguard_up() { [[ -n $(if_up $(wg show interfaces 2>/dev/null)) ]]; }
+        wireguard_up() { if_up $(wg show interfaces 2>/dev/null)); }
         """
         for name in server_list:
             s = server_list[name]
