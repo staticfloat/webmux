@@ -191,7 +191,7 @@ class BashPageHandler(tornado.web.RequestHandler):
 
         # Add some helpful tools at the beginning
         commands += """
-        GLOBAL_IP = $(curl -s http://whatismyip.akamai.com)
+        GLOBAL_IP="$(curl -s http://whatismyip.akamai.com)"
 
         # Helper function to see if we're on the same global subnet or not,
         # (just checks if the X's are the same in X.X.X.Z, this is good enough
@@ -208,7 +208,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             fi
         }
 
-        wireguard_up() { if_up $(wg show interfaces 2>/dev/null)); }
+        wireguard_up() { if_up $(wg show interfaces 2>/dev/null); }
         """
         for name in server_list:
             s = server_list[name]
