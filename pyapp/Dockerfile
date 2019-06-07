@@ -36,5 +36,6 @@ RUN chmod 0600 /root/.ssh/id_rsa && \
 # Add python code
 WORKDIR /app
 COPY . /app/
+ENV SSH_PORT 2000
 CMD ["bash", "start.sh"]
 STOPSIGNAL SIGINT

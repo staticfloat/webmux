@@ -6,7 +6,7 @@ trap "kill 0" EXIT
 
 # Start sshd in the background
 echo "Starting sshd..."
-/usr/sbin/sshd
+/usr/sbin/sshd -p ${SSH_PORT}
 
 # start our python app in the background
 python webmux.py &
