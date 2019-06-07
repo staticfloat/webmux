@@ -22,7 +22,7 @@ TEMPLATE_DIR = os.path.dirname(__file__)
 port_base = 2023
 server_list = {}
 
-def get_my_external_ip():
+def get_external_ip():
     global server_list
     while server_list['sophia']['host_ip'] == 'saba.us':
         try:
@@ -37,6 +37,11 @@ def get_my_external_ip():
         except:
             pass
 
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("1.1.1.1", 80))
+    return s.getsockname()[0]
+
 def reset_server_list():
     global server_list
     server_list = {
@@ -44,17 +49,17 @@ def reset_server_list():
             'hostname': 'sophia',
             'host_port': 22,
             'webmux_port': 22,
-            'host_ip': 'saba.us',
+            'global_ip': 'saba.us',
+            'local_ip': get_local_ip(),
             'user': 'sabae',
-            'mosh_path': '/usr/bin/mosh-server',
             'direct': True,
-            'socat_process': None,
             'last_direct_try': 1e100,
         }
     }
-    t = threading.Thread(target=get_my_external_ip)
+    t = threading.Thread(target=get_global_ip)
     t.daemon = True
     t.start()
+
 
 def kill_all_tunnels():
     """
@@ -78,65 +83,7 @@ def kill_all_tunnels():
 
     return ssh_procs
 
-update_in_progress = threading.Lock()
-def update_direct_connects():
-    """
-    Loop through all servers, checking whether we can connect to them directly.
-    If we can, then spit out bash aliases that do so by default, instead of
-    proxying through the webmux server.
-    """
-    global server_list, update_in_progress
 
-    logging.info("Checking direct connects for %d tunnels"%(len(server_list)))
-    with update_in_progress:
-        names = [k for k in server_list.keys()]
-
-        for name in names:
-            s = server_list[name]
-            if s['last_direct_try'] + 60*60 < time.time():
-                s['last_direct_try'] = time.time()
-                logging.info("  Probing %s for direct connection on port %d..."%(name, s['host_port']))
-
-                try:
-                    finger_cmd = ["ssh-keyscan", "-H", "-p", str(s['host_port']), s['host_ip']]
-                    fingerprints = subprocess.check_output(finger_cmd, stderr=subprocess.DEVNULL)
-                    fingerprints = [f.strip().split() for f in fingerprints.decode('utf-8').split('\n')]
-                    fingerprints = [f[2] for f in fingerprints if f and len(f) >= 3]
-                    if any(f == s['fingerprint'] for f in fingerprints):
-                        logging.info("    Probed %s successfully!"%(name))
-                        s['direct'] = True
-                    else:
-                        logging.info("    Probe failure on %s, fingerprint mismatch!"%(name))
-                        s['direct'] = False
-                except subprocess.CalledProcessError as e:
-                    logging.info(e)
-                    logging.info("    Probe failure on %s, (ssh connection failure)"%(name))
-                    s['direct'] = False
-
-
-socat_check_in_progress = threading.Lock()
-def check_socat_tunnel():
-    """
-    Ensures that our mosh-enabling socat tunnels are in place on the server
-    """
-    global server_list
-
-    logging.info("Checking socat tunnel health for %d tunnels"%(len(server_list)))
-    with socat_check_in_progress:
-        for name in [k for k in server_list.keys()]:
-            s = server_list[name]
-            # Skip ourselves
-            if s['webmux_port'] == 22:
-                continue
-        
-            # Was this guy's process never started, or worse, died?
-            if s['socat_process'] == None or s['socat_process'].poll() != None:
-                logging.info("Starting socat process for %s on port %d"%(s['hostname'], s['webmux_port'] + 1000))
-                server_list[name]['socat_process'] = subprocess.Popen([
-                    'bash',
-                    '-c',
-                    'while [ true ]; do socat -T22 udp4-recvfrom:%d,reuseaddr,fork tcp:localhost:%d; done'%(s['webmux_port'] + 1000, s['webmux_port'] + 1000),
-                ], stderr=subprocess.DEVNULL)
 
 class WebmuxTermManager(terminado.NamedTermManager):
     """Share terminals between websockets connected to the same endpoint.
@@ -196,7 +143,6 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             port_number = max([server_list[k]['webmux_port'] for k in server_list] + [port_base - 1]) + 1
 
             data['webmux_port'] = port_number
-            data['socat_process'] = None
             data['direct'] = False
             data['last_direct_try'] = 0
 
@@ -208,15 +154,6 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
 
         # Log out a little bit
         logging.info("Registered %s at %s:%d on webmux port %d"%(data['hostname'], data['host_ip'], data['host_port'], data['webmux_port']))
-
-        # Let's take this opportunity to update our direct connects and check
-        # our socat tunnels.  We don't mind doing this very often.
-        t = threading.Thread(target=update_direct_connects)
-        t.daemon = True
-        t.start()
-        t = threading.Thread(target=check_socat_tunnel)
-        t.daemon = True
-        t.start()
         self.write(str(data['webmux_port']))
 
 class ResetPageHandler(tornado.web.RequestHandler):
@@ -246,75 +183,61 @@ class BashPageHandler(tornado.web.RequestHandler):
     def get(self):
         global server_list
         commands = "#webmuxbash\n"
+
+        # Add some helpful tools at the beginning
+        commands += """
+        GLOBAL_IP = $(curl -s http://whatismyip.akamai.com)
+
+        # Helper function to see if we're on the same global subnet or not,
+        # (just checks if the X's are the same in X.X.X.Z, this is good enough
+        # 99% of the time)
+        same_global_subnet() { [[ ${GLOBAL_IP%.*} == ${1%.*} ]]; }
+
+        # Check if an interface is "up"
+        if_up()
+        {
+            if [[ $(uname 2>/dev/null) == "Darwin" ]]; then
+                [[ -n $(ifconfig "$1" 2>/dev/null | grep -e "flags=.*UP[,>]") ]]
+            else
+                [[ -n $(ip address show "$1" up 2>/dev/null) ]]
+            fi
+        }
+
+        wireguard_up() { [[ -n $(if_up $(wg show interfaces 2>/dev/null)) ]]; }
+        """
         for name in server_list:
             s = server_list[name]
 
             build_command = lambda name, prog: "function %s() { title %s; tmux_escape %s \"$@\"; title; }\n"%(name, name, prog)
             ssh_cmd = "ssh -A -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
 
-            # Add .mosh* commands if we've got a mosh_path:
-            if len(s['mosh_path']) != 0:
-                # Add .mosh.direct command
-                prog_base = "mosh --server=\"%s\" --bind=any "%(s['mosh_path'])
-                prog = prog_base + "--ssh='%s -p %d' %s@%s"%(ssh_cmd, s['host_port'], s['user'], s['host_ip'])
-                commands += build_command(name+".mosh.direct", prog)
-
-                # Add .mosh.webmux command
-                prog = prog_base + "--ssh='%s -p %d' --port=%d %s@webmux.e.ip.saba.us"%(ssh_cmd, s['webmux_port'], s['webmux_port'] + 1000, s['user'])
-                commands += build_command(name+".mosh.webmux", prog)
-
-            # Add .ssh.direct command
+            # Add .global for connecting to global host IP directly
             prog = ssh_cmd + "-p %d %s@%s"%(s['host_port'], s['user'], s['host_ip'])
-            commands += build_command(name+".ssh.direct", prog)
+            commands += build_command(name+".global", prog)
 
-            # Add .ssh.webmux command
+            # Add .local for connecting to local host IP directly
+            prog = ssh_cmd + "-p %d %s@%s"%(s['host_port'], s['user'], s['local_ip'])
+            commands += build_command(name+".local", prog)
+
+            # Add .webmux command for connecting to webmux reverse-tunnel
             prog = ssh_cmd + "-p %d %s@webmux.e.ip.saba.us"%(s['webmux_port'], s['user'])
-            commands += build_command(name+".ssh.webmux", prog)
+            commands += build_command(name+".webmux", prog)
 
-            # Decide whether we should prefer direct or webmux:
-            direction = "direct"
-            if not s["direct"]:
-                direction = "webmux"
-            
-            # Decide whether we should prefer mosh or ssh
-            prefer_prog = "ssh"
-            if len(s['mosh_path']) != 0:
-                prefer_prog = "mosh"
+            # Add .sabanet command for connecting over wireguard
+            prog = ssh_cmd + "-p %d %s@%s"%(s['host_port'], s['user'], sabanetify(name))
+            commands += build_command(name+".sabanet", prog)
 
-            # Start with the big kahuna; `mieli` will sub out to `mieli.ssh` or `mieli.mosh` first:
-            if prefer_prog == "mosh":
-                # If we prefer mosh for this target, check if the connecting host
-                # even has `mosh` available, and if so, try to use it.  :)
-                commands += """
-                function %s() {
-                    if [[ -n $(which mosh 2>/dev/null) ]]; then
-                        %s.mosh $*;
-                    else
-                        %s.ssh $*;
-                    fi;
-                }
-                """%(name, name, name)
-            else:
-                # If we don't prefer mosh, just jump straight to `ssh`.
-                commands += """
-                function %s() {
-                    %s.ssh $*;
-                }
-                """%(name, name)
+            commands += """
+            function %s() {
+                if wireguard_up; then
+                    %s.sabanet "$@";
+                elif same_global_subnet "%s"; then
+                    %s.local "%@";
+                else
+                    %s.webmux "%@";
+                fi;
+            """%(name, name, s['global_ip'], name)
 
-            # Next, add shortcust like "name.ssh" and "name.mosh" that default to direct/webmux
-            for prog in ["ssh", "mosh"]:
-                commands += """
-                function %s.%s() {
-                    %s.%s.%s $*;
-                };"""%(name, prog, name, prog, direction)
-
-            # Finally, add shortcust like "name.direct" and "name.webmux" that default to ssh/mosh
-            for direction in ["direct", "webmux"]:
-                commands += """
-                function %s.%s() {
-                    %s.%s.%s $*;
-                };"""%(name, direction, name, prefer_prog, direction)
         self.write(commands)
 
 

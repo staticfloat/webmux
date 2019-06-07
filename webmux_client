@@ -5,12 +5,22 @@ function decrypted()
     [[ -f "$1" ]] && [[ $(head -c 10 "$1") != "GITCRYPT" ]]
 }
 
-function get_ip()
+function resolve_ip()
 {
     if [[ "${PLATFORM}" == "Linux" ]]; then
         getent hosts $1 | awk '{ print $1 }'
     elif [[ "${PLATFORM}" == "Darwin" ]]; then
         dscacheutil -q host -a name $1 | grep ip_address | cut -d: -f2 | xargs echo
+    fi
+}
+
+function get_local_ip()
+{
+    if [[ $(uname) == "Linux" ]]; then
+        ip -o route get to 1.1.1.1 | sed -n 's/.*src \([0-9.]\+\).*/\1/p'
+    elif [[ $(uname) == "Darwin" ]]; then
+        # We've got python, so just..... just do it.
+        python -c 'import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(("1.1.1.1", 80)); print(s.getsockname()[0])'
     fi
 }
 
@@ -36,7 +46,8 @@ fi
 
 WEBMUX_HOST="${WEBMUX_HOST:-webmux.e.ip.saba.us}"
 WEBMUX_PORT="${WEBMUX_PORT:-2000}"
-WEBMUX_IP=$(get_ip ${WEBMUX_HOST})
+WEBMUX_IP=$(resolve_ip ${WEBMUX_HOST})
+LOCAL_IP=$(get_local_ip)
 WEBMUX_SSH_KEY_FILE="${WEBMUX_SSH_KEY_FILE:-${HOME}/etc/secure/ssh/external/webmux_rsa}"
 if ! decrypted "${WEBMUX_SSH_KEY_FILE}"; then
     echo "ERROR: Must decrypt webmux key!"
@@ -90,7 +101,8 @@ function get_port_mapping()
         \"hostname\":\"${HOSTNAME}\", \
         \"mosh_path\":\"${MOSH_PATH}\", \
         \"fingerprint\":\"${FINGERPRINT}\", \
-        \"host_port\":\"${HOST_PORT}\" \
+        \"host_port\":\"${HOST_PORT}\", \
+        \"local_ip\":\"${LOCAL_IP}\" \
     }"
     curl -# -H "Content-Type: application/json" -X POST -d "${JSON_DATA}" -f -L "https://${WEBMUX_HOST}/register"
 }
