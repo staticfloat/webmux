@@ -69,7 +69,7 @@ def kill_all_tunnels():
     """
     lsof_cmd = "lsof -i:%d-%d -P -n"%(port_base, port_base+100)
     try:
-        lsof_output = subprocess.check_output(lsof_cmd.split())
+        lsof_output = subprocess.check_output(lsof_cmd.split()).decode('utf-8')
     except subprocess.CalledProcessError:
         return []
     except:
@@ -180,7 +180,7 @@ class TerminalPageHandler(tornado.web.RequestHandler):
 
 def sabanetify(hostname):
     import hashlib
-    h = hashlib.sha256(hostname.encode('utf-8')).hexdigest()[-16:]
+    h = hashlib.sha256(hostname.encode('utf-8')).hexdigest()[:16]
     return "fd37:5040::" + ":".join([h[idx:idx+4] for idx in range(0, len(h), 4)])
 
 class BashPageHandler(tornado.web.RequestHandler):
@@ -233,7 +233,8 @@ class BashPageHandler(tornado.web.RequestHandler):
             commands += build_command(name+".sabanet", prog)
 
             commands += """
-            function %s() {
+            function %s()
+            {
                 if wireguard_up; then
                     %s.sabanet "$@";
                 elif same_global_subnet "%s"; then
@@ -241,9 +242,10 @@ class BashPageHandler(tornado.web.RequestHandler):
                 else
                     %s.webmux "$@";
                 fi;
+            }
             """%(name, name, s['global_ip'], name, name)
 
-        self.write(commands)
+        self.write('\n'.join([l.lstrip() for l in commands.split('\n')]))
 
 
 
