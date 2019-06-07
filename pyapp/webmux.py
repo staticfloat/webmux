@@ -22,9 +22,9 @@ TEMPLATE_DIR = os.path.dirname(__file__)
 port_base = 2023
 server_list = {}
 
-def get_external_ip():
+def get_global_ip():
     global server_list
-    while server_list['sophia']['host_ip'] == 'saba.us':
+    while server_list['sophia']['global_ip'] == 'saba.us':
         try:
             findTags = re.compile(r'<.*?>')
             findIP = re.compile(r'\d+\.\d+\.\d+\.\d+')
@@ -32,8 +32,8 @@ def get_external_ip():
             html = requests.get('http://checkip.dyndns.org' ).text()
             ipaddress = findIP.search(findTags.sub('', html))
             if ipaddress is not None:
-                server_list['sophia']['host_ip'] = ipaddress.group(0)
-                logging.info("Found external IP to be %s"%(server_list['sophia']['host_ip']))
+                server_list['sophia']['global_ip'] = ipaddress.group(0)
+                logging.info("Found global IP to be %s"%(server_list['sophia']['global_ip']))
         except:
             pass
 
@@ -131,8 +131,8 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             logging.warn("Couldn't decode JSON body \"%s\" from IP %s"%(self.request.body, self.request.headers.get('X-Real-Ip')))
             return
         
-        # Always update the 'host_ip'
-        data['host_ip'] = self.request.headers.get("X-Real-IP")
+        # Always update the 'global_ip'
+        data['global_ip'] = self.request.headers.get("X-Real-IP")
 
         # Convert `host_port` to an integer
         data['host_port'] = int(data['host_port'])
@@ -153,7 +153,7 @@ class RegistrationPageHandler(tornado.web.RequestHandler):
             data = server_list[data['hostname']]
 
         # Log out a little bit
-        logging.info("Registered %s at %s:%d on webmux port %d"%(data['hostname'], data['host_ip'], data['host_port'], data['webmux_port']))
+        logging.info("Registered %s at %s:%d on webmux port %d"%(data['hostname'], data['global_ip'], data['host_port'], data['webmux_port']))
         self.write(str(data['webmux_port']))
 
 class ResetPageHandler(tornado.web.RequestHandler):
@@ -177,6 +177,11 @@ class TerminalPageHandler(tornado.web.RequestHandler):
         return self.render("term.html", static=self.static_url,
                            ws_url_path="/_websocket/"+port_number,
                            hostname=self.get_host(port_number))
+
+def sabanetify(hostname):
+    import hashlib
+    h = hashlib.sha256(hostname.encode('utf-8')).hexdigest()[-16:]
+    return "fd37:5040::" + ":".join([h[idx:idx+4] for idx in range(0, len(h), 4)])
 
 class BashPageHandler(tornado.web.RequestHandler):
     """Render the /bash page"""
@@ -212,7 +217,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             ssh_cmd = "ssh -A -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
 
             # Add .global for connecting to global host IP directly
-            prog = ssh_cmd + "-p %d %s@%s"%(s['host_port'], s['user'], s['host_ip'])
+            prog = ssh_cmd + "-p %d %s@%s"%(s['host_port'], s['user'], s['global_ip'])
             commands += build_command(name+".global", prog)
 
             # Add .local for connecting to local host IP directly
@@ -232,11 +237,11 @@ class BashPageHandler(tornado.web.RequestHandler):
                 if wireguard_up; then
                     %s.sabanet "$@";
                 elif same_global_subnet "%s"; then
-                    %s.local "%@";
+                    %s.local "$@";
                 else
-                    %s.webmux "%@";
+                    %s.webmux "$@";
                 fi;
-            """%(name, name, s['global_ip'], name)
+            """%(name, name, s['global_ip'], name, name)
 
         self.write(commands)
 
