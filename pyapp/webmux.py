@@ -191,12 +191,15 @@ class BashPageHandler(tornado.web.RequestHandler):
 
         # Add some helpful tools at the beginning
         commands += """
-        GLOBAL_IP="$(curl -s http://whatismyip.akamai.com)"
-
         # Helper function to see if we're on the same global subnet or not,
         # (just checks if the X's are the same in X.X.X.Z, this is good enough
         # 99% of the time)
-        same_global_subnet() { [[ ${GLOBAL_IP%.*} == ${1%.*} ]]; }
+        same_global_subnet() {
+            if [[ -z "${GLOBAL_IP}" ]]; then
+                GLOBAL_IP="$(curl -s http://whatismyip.akamai.com)"
+            fi
+            [[ ${GLOBAL_IP%.*} == ${1%.*} ]]
+        }
 
         # Check if an interface is "up"
         if_up()
