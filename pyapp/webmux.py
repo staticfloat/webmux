@@ -212,6 +212,8 @@ class BashPageHandler(tornado.web.RequestHandler):
         }
 
         wireguard_up() { if_up $(wg show interfaces 2>/dev/null); }
+
+        export -f same_global_subnet if_up wireguard_up
         """
         for name in server_list:
             s = server_list[name]
@@ -246,7 +248,8 @@ class BashPageHandler(tornado.web.RequestHandler):
                     %s.webmux "$@";
                 fi;
             }
-            """%(name, name, s['global_ip'], name, name)
+            export -f %s %s.global %s.local %s.webmux %s.sabanet
+            """%(name, name, s['global_ip'], name, name, name, name, name, name, name)
 
         self.write('\n'.join([l.lstrip() for l in commands.split('\n')]))
 
