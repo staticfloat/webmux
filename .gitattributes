@@ -1,4 +1,4 @@
 # Encrypt all password files
-#*_passwd filter=git-crypt diff=git-crypt
-#*_rsa filter=git-crypt diff=git-crypt
+*_passwd filter=git-crypt diff=git-crypt
+*_rsa filter=git-crypt diff=git-crypt
 
