@@ -44,7 +44,7 @@ if [[ -z "${HOST_PORT}" ]]; then
     fi
 fi
 
-WEBMUX_HOST="${WEBMUX_HOST:-webmux.e.ip.saba.us}"
+WEBMUX_HOST="${WEBMUX_HOST:-webmux.cflo.at}"
 WEBMUX_PORT="${WEBMUX_PORT:-2000}"
 WEBMUX_IP=$(resolve_ip ${WEBMUX_HOST})
 LOCAL_IP=$(get_local_ip)

@@ -24,7 +24,7 @@ server_list = {}
 
 def get_global_ip():
     global server_list
-    while server_list['sophia']['global_ip'] == 'saba.us':
+    while server_list['sancia']['global_ip'] == 'webmux.cflo.at':
         try:
             findTags = re.compile(r'<.*?>')
             findIP = re.compile(r'\d+\.\d+\.\d+\.\d+')
@@ -32,8 +32,8 @@ def get_global_ip():
             html = requests.get('http://checkip.dyndns.org' ).text()
             ipaddress = findIP.search(findTags.sub('', html))
             if ipaddress is not None:
-                server_list['sophia']['global_ip'] = ipaddress.group(0)
-                logging.info("Found global IP to be %s"%(server_list['sophia']['global_ip']))
+                server_list['sancia']['global_ip'] = ipaddress.group(0)
+                logging.info("Found global IP to be %s"%(server_list['sancia']['global_ip']))
         except:
             pass
 
@@ -45,11 +45,11 @@ def get_local_ip():
 def reset_server_list():
     global server_list
     server_list = {
-        'sophia': {
-            'hostname': 'sophia',
+        'sancia': {
+            'hostname': 'sancia',
             'host_port': 22,
             'webmux_port': 22,
-            'global_ip': 'saba.us',
+            'global_ip': 'webmux.cflo.at',
             'local_ip': get_local_ip(),
             'user': 'sabae',
             'direct': True,
@@ -109,7 +109,7 @@ class WebmuxTermManager(terminado.NamedTermManager):
 
         # Create new terminal
         logging.info("Attempting to connect to: %s@%s:%d", s['user'], name, s['webmux_port'])
-        self.shell_command = ["ssh", "-C", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking no", "-p", port_number, s['user']+"@webmux.e.ip.saba.us"]
+        self.shell_command = ["ssh", "-C", "-o", "UserKnownHostsFile /dev/null", "-o", "StrictHostKeyChecking no", "-p", port_number, s['user']+"@webmux.cflo.at"]
         term = self.new_terminal()
         term.term_name = port_number
         self.terminals[port_number] = term
@@ -228,7 +228,7 @@ class BashPageHandler(tornado.web.RequestHandler):
             commands += build_command(name+".local", prog)
 
             # Add .webmux command for connecting to webmux reverse-tunnel
-            prog = ssh_cmd + "-p %d %s@webmux.e.ip.saba.us"%(s['webmux_port'], s['user'])
+            prog = ssh_cmd + "-p %d %s@webmux.cflo.at"%(s['webmux_port'], s['user'])
             commands += build_command(name+".webmux", prog)
 
             # Add .sabanet command for connecting over wireguard
