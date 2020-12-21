@@ -202,16 +202,14 @@ class BashPageHandler(tornado.web.RequestHandler):
         }
 
         # Check if an interface is "up"
-        if_up()
+        wireguard_up()
         {
             if [[ $(uname 2>/dev/null) == "Darwin" ]]; then
-                [[ -n $(ifconfig "$1" 2>/dev/null | grep -e "flags=.*UP[,>]") ]]
+                [[ -n $(ifconfig 2>/dev/null | grep -e "^utun[^ ]: flags=.*UP[,>]" -A 4 | grep -e "inet6 fd37:5040::") ]]
             else
-                [[ -n $(ip address show "$1" up 2>/dev/null) ]]
+                [[ -n $(ip address show $(wg show interfaces 2>/dev/null) up 2>/dev/null) ]]
             fi
         }
-
-        wireguard_up() { if_up $(wg show interfaces 2>/dev/null); }
         """
         for name in server_list:
             s = server_list[name]
