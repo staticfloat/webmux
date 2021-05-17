@@ -24,7 +24,7 @@ server_list = {}
 
 def get_global_ip():
     global server_list
-    while server_list['sancia']['global_ip'] == 'webmux.cflo.at':
+    while server_list['ivolethe']['global_ip'] == 'webmux.cflo.at':
         try:
             findTags = re.compile(r'<.*?>')
             findIP = re.compile(r'\d+\.\d+\.\d+\.\d+')
@@ -32,8 +32,8 @@ def get_global_ip():
             html = requests.get('http://checkip.dyndns.org' ).text()
             ipaddress = findIP.search(findTags.sub('', html))
             if ipaddress is not None:
-                server_list['sancia']['global_ip'] = ipaddress.group(0)
-                logging.info("Found global IP to be %s"%(server_list['sancia']['global_ip']))
+                server_list['ivolethe']['global_ip'] = ipaddress.group(0)
+                logging.info("Found global IP to be %s"%(server_list['ivolethe']['global_ip']))
         except:
             pass
 
@@ -45,8 +45,8 @@ def get_local_ip():
 def reset_server_list():
     global server_list
     server_list = {
-        'sancia': {
-            'hostname': 'sancia',
+        'ivolethe': {
+            'hostname': 'ivolethe',
             'host_port': 22,
             'webmux_port': 22,
             'global_ip': 'webmux.cflo.at',
