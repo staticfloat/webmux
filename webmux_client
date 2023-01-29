@@ -19,8 +19,9 @@ function get_local_ip()
     if [[ $(uname) == "Linux" ]]; then
         ip -o route get to 1.1.1.1 | sed -n 's/.*src \([0-9.]\+\).*/\1/p'
     elif [[ $(uname) == "Darwin" ]]; then
-        # We've got python, so just..... just do it.
-        python -c 'import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(("1.1.1.1", 80)); print(s.getsockname()[0])'
+        # Figure out interface name of default route
+        DEFAULT_INTERFACE=$(route -n get 0.0.0.0 2>/dev/null | awk '/interface: / {print $2}')
+        ifconfig "${DEFAULT_INTERFACE}" | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}'
     fi
 }
 
